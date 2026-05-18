@@ -231,6 +231,8 @@
                     <Button fx:id="heartButton" styleClass="heart-btn"
                             onAction="#handleToggleFavourite">
                     </Button>
+                    <Button text="Annotate" styleClass="btn-secondary"
+                            onAction="#handleAnnotate"/>
                     <Button text="Share" styleClass="btn-secondary"
                             onAction="#handleShare"/>
                 </HBox>
