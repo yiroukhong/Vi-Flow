@@ -426,19 +426,24 @@
     -fx-padding: 24;
 }
 
-/* === Annotation Panel =================================== */
+/* === Annotation Side Panel ============================== */
 .annotation-panel {
     -fx-background-color: #FBF8F3;
-    -fx-border-color: #ECE4D3 transparent transparent transparent;
-    -fx-border-width: 1 0 0 0;
-    -fx-padding: 12 20 16 20;
-    -fx-spacing: 8;
+    -fx-border-color: #ECE4D3;
+    -fx-border-width: 0 0 0 1;
+    -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.10), 12, 0, -4, 0);
 }
 
-.annotation-section-label {
-    -fx-text-fill: #9C907D;
-    -fx-font-size: 10px;
-    -fx-font-weight: bold;
+.annotation-note-display {
+    -fx-background-color: white;
+    -fx-border-color: #ECE4D3;
+    -fx-border-radius: 8;
+    -fx-background-radius: 8;
+    -fx-padding: 10 12;
+    -fx-font-size: 13px;
+    -fx-font-style: italic;
+    -fx-text-fill: #1F1B16;
+    -fx-wrap-text: true;
 }
 
 .annotation-field {
