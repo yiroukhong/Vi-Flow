@@ -40,35 +40,44 @@ public class MediaPlayerController {
             throw new IllegalArgumentException("Video file not found: " + videoPath);
         }
 
-        // 2. Create JavaFX Media and MediaPlayer
+        // 2. AVI files (XVID) are not supported by JavaFX MediaPlayer on Windows.
+        //    Open them with the OS default player (VLC, Windows Media Player, etc.)
+        if (videoPath.toLowerCase().endsWith(".avi")) {
+            try {
+                java.awt.Desktop.getDesktop().open(f);
+            } catch (Exception ex) {
+                throw new RuntimeException(
+                    "Could not open video with system player: " + ex.getMessage(), ex);
+            }
+            return;
+        }
+
+        // 3. For MP4 files — use JavaFX MediaPlayer inside the app
         Media       media  = new Media(f.toURI().toString());
         MediaPlayer player = new MediaPlayer(media);
 
-        // 3. Create MediaView — fills available space
+        // 4. Create MediaView — fills available space
         MediaView mediaView = new MediaView(player);
         mediaView.setPreserveRatio(true);
 
-        // StackPane holds the MediaView and expands to fill centre
         StackPane mediaPane = new StackPane(mediaView);
         mediaPane.setStyle("-fx-background-color:black;");
         mediaView.fitWidthProperty().bind(mediaPane.widthProperty());
         mediaView.fitHeightProperty().bind(mediaPane.heightProperty());
 
-        // 4. Build playback controls
-        Button playBtn   = new Button("▶ Play");
-        Button pauseBtn  = new Button("⏸ Pause");
+        // 5. Build playback controls
+        Button playBtn    = new Button("▶ Play");
+        Button pauseBtn   = new Button("⏸ Pause");
         Slider seekSlider = new Slider(0, 1, 0);
         seekSlider.setPrefWidth(300);
         HBox.setHgrow(seekSlider, Priority.ALWAYS);
 
-        Label timeLabel  = new Label("0:00 / 0:00");
+        Label timeLabel = new Label("0:00 / 0:00");
         timeLabel.setTextFill(Color.WHITE);
         timeLabel.setStyle("-fx-font-size:11; -fx-font-family:'Consolas',monospace;");
 
-        // Share via Email button — Contract §7
         Button shareBtn = new Button("✉ Share");
 
-        // Style buttons
         String btnStyle = "-fx-background-color:rgba(255,255,255,0.15);"
                 + "-fx-text-fill:white;"
                 + "-fx-background-radius:6;"
@@ -78,11 +87,11 @@ public class MediaPlayerController {
         pauseBtn.setStyle(btnStyle);
         shareBtn.setStyle(btnStyle);
 
-        // 5. Wire play/pause buttons
+        // 6. Wire play/pause
         playBtn.setOnAction(e  -> player.play());
         pauseBtn.setOnAction(e -> player.pause());
 
-        // 6. Wire seek slider and time label
+        // 7. Wire seek slider and time label
         player.currentTimeProperty().addListener((obs, old, now) -> {
             double dur = player.getTotalDuration() != null
                     ? player.getTotalDuration().toSeconds() : 0;
@@ -98,12 +107,11 @@ public class MediaPlayerController {
             player.seek(target);
         });
 
-        // 7. Wire Share button to Sam's EmailSender — Contract §7
+        // 8. Wire Share button
         shareBtn.setOnAction(e ->
                 EmailSender.launchComposeWindow(videoPath, "VIDEO"));
 
-        // 8. Assemble controls bar — sits at the BOTTOM of the layout
-        //    so it never blocks the video content
+        // 9. Assemble controls bar
         Region spacer = new Region();
         HBox.setHgrow(spacer, Priority.ALWAYS);
 
@@ -113,29 +121,26 @@ public class MediaPlayerController {
         controlBox.setPadding(new Insets(10, 16, 10, 16));
         controlBox.setStyle("-fx-background-color:rgba(0,0,0,0.75);");
 
-        // 9. Root layout — video fills centre, controls pinned to bottom
+        // 10. Root layout
         BorderPane root = new BorderPane();
         root.setCenter(mediaPane);
         root.setBottom(controlBox);
         root.setStyle("-fx-background-color:black;");
 
-        // 10. Auto-play when player is ready
+        // 11. Auto-play when ready
         player.setOnReady(() -> player.play());
 
-        // Contract §6 — launch in a separate non-blocking popup window
         Stage popup = new Stage();
         popup.setScene(new Scene(root, 900, 560));
         popup.setTitle("Video Player — Vi-Flow");
         popup.show();
 
-        // Update play button text on state change
         player.statusProperty().addListener((obs, oldStatus, newStatus) -> {
             if (newStatus == MediaPlayer.Status.PLAYING) {
                 playBtn.setText("▶ Play");
             }
         });
 
-        // Stop player when window is closed
         popup.setOnCloseRequest(e -> player.stop());
     }
 
