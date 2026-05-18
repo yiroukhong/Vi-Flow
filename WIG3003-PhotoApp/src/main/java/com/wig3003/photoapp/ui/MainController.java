@@ -671,6 +671,45 @@ public class MainController implements Initializable {
         return badge;
     }
 
+    private void updateThumbnailBadges(int index) {
+        // index is the position in displayPaths
+        // photoGrid children are VBox wrappers — one per displayPaths entry
+        // each VBox has: StackPane cell (index 0), Label nameLabel (index 1)
+        // the StackPane cell children are: ImageView, [badges...], selectionOverlay
+        // selectionOverlay is always the LAST child of the StackPane
+        if (index < 0 || index >= photoGrid.getChildren().size()) return;
+
+        Node wrapperNode = photoGrid.getChildren().get(index);
+        if (!(wrapperNode instanceof VBox)) return;
+        VBox wrapper = (VBox) wrapperNode;
+
+        if (wrapper.getChildren().isEmpty()) return;
+        Node cellNode = wrapper.getChildren().get(0);
+        if (!(cellNode instanceof StackPane)) return;
+        StackPane cell = (StackPane) cellNode;
+
+        String path = displayPaths.get(index);
+
+        // Remove everything between ImageView (index 0) and selectionOverlay (last)
+        List<Node> toRemove = new ArrayList<>();
+        for (int i = 1; i < cell.getChildren().size() - 1; i++) {
+            toRemove.add(cell.getChildren().get(i));
+        }
+        cell.getChildren().removeAll(toRemove);
+
+        // Re-insert badges just before the selectionOverlay
+        int insertAt = cell.getChildren().size() - 1;
+
+        if (favourites.contains(path)) {
+            cell.getChildren().add(insertAt, buildHeartBadge());
+            insertAt++;
+        }
+
+        if (MetadataStore.getInstance().hasAnnotation(path)) {
+            cell.getChildren().add(insertAt, buildAnnotationBadge());
+        }
+    }
+
     // ── Selection ─────────────────────────────────────────────────────────────
 
     private void selectImage(int index) {
