@@ -136,8 +136,7 @@
                     <TextField fx:id="searchField" styleClass="search-field"
                                promptText="Search by name, date, or tag"
                                onAction="#handleSearch"/>
-                    <Button text="Import" styleClass="btn-secondary"
-                                    onAction="#handleImport">
+                    <Button fx:id="importBtn" text="Import" styleClass="btn-secondary">
                         <graphic>
                             <FontIcon iconLiteral="bi-box-arrow-in-down" iconSize="16"/>
                         </graphic>
@@ -195,14 +194,14 @@
                                text="Drop a folder anywhere on this window, or use&#10;import to point Vi-Flow at your photo library"
                                wrapText="true"/>
                         <HBox styleClass="empty-buttons">
-                            <Button text="Browse" styleClass="btn-secondary"
-                                    onAction="#handleBrowse">
+                            <Button text="Browse files" styleClass="btn-secondary"
+                                    onAction="#handleImport">
                                 <graphic>
                                     <FontIcon iconLiteral="bi-folder" iconSize="16"/>
                                 </graphic>
                             </Button>
                             <Button text="Import folder" styleClass="btn-primary"
-                                    onAction="#handleImport">
+                                    onAction="#handleImportFolder">
                                 <graphic>
                                     <FontIcon iconLiteral="bi-box-arrow-in-down" iconSize="16" iconColor="WHITE" />
                                 </graphic>

@@ -38,7 +38,10 @@ import javafx.scene.layout.VBox;
 import javafx.scene.paint.Color;
 import javafx.scene.shape.Rectangle;
 import javafx.scene.shape.StrokeType;
+import javafx.scene.control.ContextMenu;
+import javafx.scene.control.MenuItem;
 import javafx.stage.DirectoryChooser;
+import javafx.stage.FileChooser;
 
 // CW: added imports for DipEdit navigation
 import com.wig3003.photoapp.dip.DipEditController;
@@ -88,6 +91,7 @@ public class MainController implements Initializable {
     @FXML private Label fontSizeLabel;
     @FXML private javafx.scene.control.ColorPicker fontColorPicker;
     @FXML private Label annotationFeedbackLabel;
+    @FXML private Button importBtn;
 
     private Image originalImage;
     private String userText = "";
@@ -228,6 +232,16 @@ public class MainController implements Initializable {
 
         // Setup drag on canvas
         setupAnnotationDrag();
+
+        // Import button context menu
+        ContextMenu importMenu = new ContextMenu();
+        MenuItem miFiles  = new MenuItem("Import files");
+        MenuItem miFolder = new MenuItem("Import folder");
+        miFiles.setOnAction(e -> handleImport());
+        miFolder.setOnAction(e -> handleImportFolder());
+        importMenu.getItems().addAll(miFiles, miFolder);
+        importBtn.setOnMouseClicked(e ->
+                importMenu.show(importBtn, javafx.geometry.Side.BOTTOM, 0, 0));
     }
     // ── Navigation ────────────────────────────────────────────────────────────
 
@@ -405,42 +419,42 @@ public class MainController implements Initializable {
 
     @FXML
     private void handleImport() {
-        openDirectoryChooser();
+        FileChooser chooser = new FileChooser();
+        chooser.setTitle("Select Images");
+        chooser.getExtensionFilters().add(new FileChooser.ExtensionFilter(
+                "Image files", "*.png", "*.jpg", "*.jpeg", "*.bmp", "*.gif"));
+        List<File> files = chooser.showOpenMultipleDialog(
+                gridScrollPane.getScene().getWindow());
+        if (files == null || files.isEmpty()) return;
+        List<String> paths = new ArrayList<>();
+        for (File f : files) paths.add(f.getAbsolutePath());
+        addFilesToLibrary(paths);
+    }
+
+    @FXML
+    private void handleImportFolder() {
+        DirectoryChooser chooser = new DirectoryChooser();
+        chooser.setTitle("Select Photo Folder");
+        File dir = chooser.showDialog(gridScrollPane.getScene().getWindow());
+        if (dir == null) return;
+        File[] files = dir.listFiles(f -> f.isFile() && isImageFile(f.getName()));
+        if (files == null) return;
+        Arrays.sort(files, (a, b) -> a.getName().compareToIgnoreCase(b.getName()));
+        List<String> paths = new ArrayList<>();
+        for (File f : files) paths.add(f.getAbsolutePath());
+        addFilesToLibrary(paths);
     }
 
     @FXML
     private void handleBrowse() {
-        openDirectoryChooser();
+        handleImport();
     }
 
-    private void openDirectoryChooser() {
-        DirectoryChooser chooser = new DirectoryChooser();
-        chooser.setTitle("Select Photo Folder");
-        File dir = chooser.showDialog(gridScrollPane.getScene().getWindow());
-        if (dir != null) {
-            loadFolder(dir);
+    private void addFilesToLibrary(List<String> newPaths) {
+        for (String p : newPaths) {
+            if (!allPaths.contains(p)) allPaths.add(p);
         }
-    }
-
-    private void loadFolder(File dir) {
-        allPaths.clear();
-        selectedIndex = -1;
-        selectedCountLabel.setText("");
-
-        File[] files = dir.listFiles(f ->
-                f.isFile() && isImageFile(f.getName()));
-        if (files != null) {
-            Arrays.sort(files, (a, b) -> a.getName().compareToIgnoreCase(b.getName()));
-            for (File f : files) {
-                allPaths.add(f.getAbsolutePath());
-            }
-        }
-
-        // CW: remember imported folder images as app library images
         MetadataStore.getInstance().saveLibraryImagePaths(allPaths);
-        // CW: change end
-
-
         applyFilter();
         updateCounts();
     }
