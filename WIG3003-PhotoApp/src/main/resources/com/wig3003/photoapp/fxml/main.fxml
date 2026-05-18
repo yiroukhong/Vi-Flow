@@ -209,6 +209,21 @@
                         </HBox>
                     </VBox>
 
+                    <!-- Filtered empty state (Favorites / Annotated) -->
+                    <VBox fx:id="emptyStateFiltered" styleClass="empty-state"
+                          alignment="CENTER" spacing="12"
+                          visible="false" managed="false">
+                        <StackPane styleClass="empty-icon-bg" alignment="CENTER">
+                            <FontIcon fx:id="emptyFilteredIcon" iconLiteral="bi-heart"
+                                      iconSize="48" styleClass="empty-icon"/>
+                        </StackPane>
+                        <Label fx:id="emptyFilteredTitle" text=""
+                               styleClass="empty-title"/>
+                        <Label fx:id="emptyFilteredBody" text=""
+                               styleClass="empty-body" wrapText="true"
+                               textAlignment="CENTER"/>
+                    </VBox>
+
                 </StackPane>
             </VBox>
 

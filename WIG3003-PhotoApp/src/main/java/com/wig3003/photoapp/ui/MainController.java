@@ -42,6 +42,7 @@ import javafx.scene.control.ContextMenu;
 import javafx.scene.control.MenuItem;
 import javafx.stage.DirectoryChooser;
 import javafx.stage.FileChooser;
+import org.kordamp.ikonli.javafx.FontIcon;
 
 // CW: added imports for DipEdit navigation
 import com.wig3003.photoapp.dip.DipEditController;
@@ -77,6 +78,10 @@ public class MainController implements Initializable {
     @FXML private ScrollPane gridScrollPane;
     @FXML private TilePane photoGrid;
     @FXML private VBox emptyState;
+    @FXML private VBox emptyStateFiltered;
+    @FXML private FontIcon emptyFilteredIcon;
+    @FXML private Label emptyFilteredTitle;
+    @FXML private Label emptyFilteredBody;
 
     // Detail view
     @FXML private VBox detailView;
@@ -523,7 +528,7 @@ public class MainController implements Initializable {
         selectionOverlays.clear();
 
         if (displayPaths.isEmpty()) {
-            showEmptyState(true);
+            showAppropriateEmptyState();
             return;
         }
 
@@ -533,11 +538,37 @@ public class MainController implements Initializable {
         }
     }
 
+    private void showAppropriateEmptyState() {
+        if ("FAVOURITES".equals(activeFilter)) {
+            showFilteredEmptyState("bi-heart", "No favourites yet",
+                    "Nothing here yet. Mark images as favourites in the library to see them here.");
+        } else if ("ANNOTATED".equals(activeFilter)) {
+            showFilteredEmptyState("bi-pencil-square", "No annotated images yet",
+                    "Nothing here yet. Open an image in the library and add an annotation to see it here.");
+        } else {
+            showEmptyState(true);
+        }
+    }
+
+    private void showFilteredEmptyState(String icon, String title, String body) {
+        emptyFilteredIcon.setIconLiteral(icon);
+        emptyFilteredTitle.setText(title);
+        emptyFilteredBody.setText(body);
+        emptyState.setVisible(false);
+        emptyState.setManaged(false);
+        gridScrollPane.setVisible(false);
+        gridScrollPane.setManaged(false);
+        emptyStateFiltered.setVisible(true);
+        emptyStateFiltered.setManaged(true);
+    }
+
     private void showEmptyState(boolean empty) {
         emptyState.setVisible(empty);
         emptyState.setManaged(empty);
         gridScrollPane.setVisible(!empty);
         gridScrollPane.setManaged(!empty);
+        emptyStateFiltered.setVisible(false);
+        emptyStateFiltered.setManaged(false);
     }
 
     private Node createThumbnailCell(String path, int index) {
