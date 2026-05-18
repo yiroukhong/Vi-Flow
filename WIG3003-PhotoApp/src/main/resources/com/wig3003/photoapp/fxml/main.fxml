@@ -16,9 +16,6 @@
 <?import javafx.scene.layout.TilePane?>
 <?import javafx.scene.layout.VBox?>
 <?import org.kordamp.ikonli.javafx.FontIcon?>
-<?import javafx.scene.canvas.Canvas?>
-<?import javafx.scene.control.ColorPicker?>
-<?import javafx.scene.control.Slider?>
 
 <BorderPane xmlns="http://javafx.com/javafx/21"
             xmlns:fx="http://javafx.com/fxml/1"
@@ -113,7 +110,6 @@
                     <HBox.hgrow>ALWAYS</HBox.hgrow>
                 </Label>
             </HBox>
-            
 
         </VBox>
     </left>
@@ -226,7 +222,6 @@
                   VBox.vgrow="ALWAYS">
 
                 <!-- Detail header -->
-                <!-- Detail header -->
                 <HBox styleClass="detail-header">
                     <Label fx:id="detailFilename" text=""
                            styleClass="detail-filename"/>
@@ -240,7 +235,7 @@
                             onAction="#handleShare"/>
                 </HBox>
 
-                <!-- Full-res image area (dark canvas) -->
+                <!-- Full-res image area -->
                 <StackPane fx:id="detailImageArea"
                         styleClass="detail-image-area"
                         VBox.vgrow="ALWAYS"
@@ -249,59 +244,11 @@
                     <ImageView fx:id="detailImageView"
                             preserveRatio="true" smooth="true"
                             pickOnBounds="true"/>
-                    <!-- Canvas sits on top — text + heart drawn here -->
-                    <Canvas fx:id="annotationCanvas"/>
                 </StackPane>
 
-                <!-- Annotation panel -->
-            <VBox styleClass="annotation-panel" spacing="8" VBox.vgrow="NEVER">
-                <padding><Insets top="10" right="16" bottom="12" left="16"/></padding>
-
-                <Label text="ANNOTATE IMAGE" styleClass="annotation-section-label"/>
-
-                <!-- Text input row -->
-                <HBox spacing="10" alignment="CENTER_LEFT">
-                    <Label text="Text" minWidth="70" maxWidth="70"
-                        style="-fx-text-fill: #888; -fx-font-size: 12px;"/>
-                    <TextField fx:id="annotationTextField"
-                            promptText="Type annotation text..."
-                            HBox.hgrow="ALWAYS"/>
-                </HBox>
-
-                <!-- Font size row -->
-                <HBox spacing="10" alignment="CENTER_LEFT">
-                    <Label text="Font size" minWidth="70" maxWidth="70"
-                        style="-fx-text-fill: #888; -fx-font-size: 12px;"/>
-                    <Slider fx:id="fontSizeSlider" min="10" max="72" value="18"
-                            HBox.hgrow="ALWAYS"/>
-                    <Label fx:id="fontSizeLabel" text="18 pt"
-                        minWidth="36" maxWidth="36"
-                        style="-fx-font-size: 12px; -fx-text-fill: #666;"/>
-                </HBox>
-
-                <!-- Font color row -->
-                <HBox spacing="10" alignment="CENTER_LEFT">
-                    <Label text="Font color" minWidth="70" maxWidth="70"
-                        style="-fx-text-fill: #888; -fx-font-size: 12px;"/>
-                        <ColorPicker fx:id="fontColorPicker" prefWidth="180" minWidth="180" maxWidth="180" prefHeight="32"/>
-                </HBox>
-
-                <!-- Buttons row -->
-                <HBox alignment="CENTER_RIGHT" spacing="10">
-                    <padding><Insets top="4"/></padding>
-                    <Label fx:id="annotationFeedbackLabel" text=""
-                        style="-fx-font-size: 12px; -fx-text-fill: #6B6051; -fx-font-style: italic;">
-                        <HBox.hgrow>ALWAYS</HBox.hgrow>
-                    </Label>
-                    <Button text="Clear text" styleClass="btn-secondary"
-                            onAction="#handleClearText" prefWidth="100"/>
-                    <Button text="Save" styleClass="btn-primary"
-                            onAction="#handleSaveAndBack" prefWidth="100"/>
-                </HBox>
-                </VBox>
-
             </VBox>
-                        <!-- ─── MOSAIC VIEW ───────────────────────────── -->
+
+            <!-- ─── MOSAIC VIEW ───────────────────────────── -->
             <fx:include fx:id="mosaicView"
                         source="MosaicView.fxml"
                         visible="false" managed="false"/>
@@ -315,6 +262,78 @@
             <fx:include fx:id="shareView"
                         source="ShareView.fxml"
                         visible="false" managed="false"/>
+
+            <!-- ─── ANNOTATION SIDE PANEL ──────────────── -->
+            <VBox fx:id="annotationPanel"
+                  visible="false" managed="false"
+                  prefWidth="300" maxWidth="300"
+                  spacing="0"
+                  StackPane.alignment="CENTER_RIGHT"
+                  style="-fx-background-color:#FBF8F3; -fx-border-color:#ECE4D3; -fx-border-width:0 0 0 1; -fx-effect:dropshadow(gaussian,rgba(0,0,0,0.10),12,0,-4,0);">
+
+                <!-- Header -->
+                <HBox alignment="CENTER_LEFT" spacing="10"
+                      style="-fx-padding:14 16 14 16; -fx-border-color:transparent transparent #ECE4D3 transparent; -fx-border-width:0 0 1 0;">
+                    <VBox HBox.hgrow="ALWAYS" spacing="3">
+                        <Label fx:id="panelFilename" text=""
+                               style="-fx-font-size:13px; -fx-font-weight:bold; -fx-text-fill:#1F1B16;"/>
+                        <Label text="Annotated photos show &#9829; in the upper-right of the preview"
+                               wrapText="true"
+                               style="-fx-font-size:10px; -fx-text-fill:#9C907D;"
+                               maxWidth="220"/>
+                    </VBox>
+                    <Button text="&#x2715;" onAction="#handleCloseAnnotationPanel"
+                            style="-fx-background-color:transparent; -fx-border-color:transparent; -fx-text-fill:#9C907D; -fx-font-size:14px; -fx-cursor:hand; -fx-padding:4 8;"/>
+                </HBox>
+
+                <!-- Existing annotation (shown when one exists) -->
+                <VBox fx:id="existingAnnotationBox"
+                      visible="false" managed="false"
+                      spacing="6"
+                      style="-fx-padding:12 16 12 16; -fx-border-color:transparent transparent #ECE4D3 transparent; -fx-border-width:0 0 1 0;">
+                    <Label text="NOTE"
+                           style="-fx-font-size:10px; -fx-font-weight:bold; -fx-text-fill:#9C907D;"/>
+                    <Label fx:id="existingAnnotationText" text=""
+                           wrapText="true"
+                           style="-fx-font-size:13px; -fx-font-style:italic; -fx-text-fill:#1F1B16; -fx-background-color:white; -fx-border-color:#ECE4D3; -fx-border-radius:8; -fx-background-radius:8; -fx-padding:10 12;"/>
+                    <Label fx:id="existingAnnotationDate" text=""
+                           style="-fx-font-size:10px; -fx-text-fill:#9C907D;"/>
+                    <HBox spacing="8" style="-fx-padding:4 0 0 0;">
+                        <Button text="Edit" onAction="#handleEditAnnotation"
+                                styleClass="btn-secondary"
+                                prefHeight="28"
+                                style="-fx-font-size:11px;"/>
+                        <Button text="Delete" onAction="#handleDeleteAnnotation"
+                                prefHeight="28"
+                                style="-fx-font-size:11px; -fx-background-color:transparent; -fx-text-fill:#B0432B; -fx-border-color:#F5C0C0; -fx-border-radius:8; -fx-background-radius:8; -fx-padding:4 12; -fx-cursor:hand;"/>
+                    </HBox>
+                </VBox>
+
+                <!-- Add / edit note -->
+                <VBox fx:id="addNoteBox"
+                      spacing="8"
+                      VBox.vgrow="ALWAYS"
+                      style="-fx-padding:12 16 12 16;">
+                    <Label fx:id="addNoteLabel" text="Add a note"
+                           style="-fx-font-size:10px; -fx-font-weight:bold; -fx-text-fill:#9C907D;"/>
+                    <TextArea fx:id="annotationTextArea"
+                              promptText="A note about this image…"
+                              wrapText="true"
+                              prefHeight="120"
+                              styleClass="annotation-field"/>
+                    <HBox alignment="CENTER_RIGHT" style="-fx-padding:4 0 0 0;">
+                        <Label fx:id="annotationFeedbackLabel" text=""
+                               style="-fx-font-size:11px; -fx-font-style:italic; -fx-text-fill:#6B6051;">
+                            <HBox.hgrow>ALWAYS</HBox.hgrow>
+                        </Label>
+                        <Button fx:id="annotationSaveBtn" text="Add"
+                                onAction="#handleSaveAnnotation"
+                                styleClass="btn-primary"
+                                style="-fx-font-size:12px; -fx-padding:6 18;"/>
+                    </HBox>
+                </VBox>
+
+            </VBox>
 
         </StackPane>
     </center>
