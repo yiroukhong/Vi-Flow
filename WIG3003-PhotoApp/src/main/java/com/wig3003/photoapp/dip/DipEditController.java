@@ -133,12 +133,6 @@ public class DipEditController {
     private void passMainControllerToCtrl(Object ctrl) {
         if (ctrl instanceof DipGeometricController)
             ((DipGeometricController) ctrl).setMainController(mainController);
-        else if (ctrl instanceof DipExtractController)
-            ((DipExtractController) ctrl).setMainController(mainController);
-        else if (ctrl instanceof DipRadiometricController)
-            ((DipRadiometricController) ctrl).setMainController(mainController);
-        else if (ctrl instanceof DipAestheticController)
-            ((DipAestheticController) ctrl).setMainController(mainController);
     }
 
     /**
@@ -236,6 +230,10 @@ public class DipEditController {
 
             } catch (Exception e) {
                 e.printStackTrace();
+                activeTab = tab;
+                setActiveTabStyle(tab);
+                if (titleLabel != null) titleLabel.setText("Edit · " + tab);
+                if (statusLabel != null) statusLabel.setText("Load error");
                 showPlaceholder(tab + " (load error: " + e.getMessage() + ")");
                 return;
             }
