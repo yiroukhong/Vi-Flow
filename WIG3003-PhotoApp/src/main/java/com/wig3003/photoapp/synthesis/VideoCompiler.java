@@ -82,7 +82,7 @@ public class VideoCompiler {
 
         // 3. Set up VideoWriter — XVID codec, AVI container, 1280x720, 25fps
         String filename  = "video_" + System.currentTimeMillis() + ".avi";
-        String outPath   = outputDir + File.separator + filename;
+        String outPath = (outputDir + "/" + filename).replace("\\", "/");
 
         VideoWriter writer    = new VideoWriter();
         int         fourcc    = VideoWriter.fourcc('X', 'V', 'I', 'D');
