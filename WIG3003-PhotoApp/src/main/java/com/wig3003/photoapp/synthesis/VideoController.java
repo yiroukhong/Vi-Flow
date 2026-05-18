@@ -1,8 +1,6 @@
 package com.wig3003.photoapp.synthesis;
 
-import com.wig3003.photoapp.ui.MainController;
 import com.wig3003.photoapp.util.FavouritesManager;
-import com.wig3003.photoapp.util.SaveHelper;
 
 import javafx.animation.KeyFrame;
 import javafx.animation.Timeline;
@@ -100,8 +98,6 @@ public class VideoController {
     // =========================================================
     // STATE
     // =========================================================
-
-    private MainController            mainController    = null;
 
     private List<String>              clipPaths         = new ArrayList<>();
     private List<String>              libraryPaths      = new ArrayList<>();
@@ -494,7 +490,7 @@ public class VideoController {
     }
 
     // =========================================================
-    // COMPILE — reads position toggle and passes to VideoCompiler
+    // COMPILE — auto-launches MediaPlayer after compile
     // =========================================================
 
     @FXML
@@ -520,26 +516,32 @@ public class VideoController {
         if (transFade.isSelected())       transitionType = "FADE";
         else if (transCross.isSelected()) transitionType = "CROSS";
 
-        // Read position toggle — FIX: was never read before
+        // Read position toggle
         String textPosition = "BOTTOM";
         if (posTop.isSelected())         textPosition = "TOP";
         else if (posCenter.isSelected()) textPosition = "CENTER";
 
-        List<String>  paths      = new ArrayList<>(clipPaths);
-        final String  transition = transitionType;
-        final String  position   = textPosition;
+        List<String> paths      = new ArrayList<>(clipPaths);
+        final String transition = transitionType;
+        final String position   = textPosition;
 
         compileThread = new Thread(() -> {
             try {
                 String resultPath = new VideoCompiler()
                         .compileVideo(paths, durationPerPhoto, overlayText,
-                                outputDir, transition, position);  // ← position now passed
+                                outputDir, transition, position);
 
                 Platform.runLater(() -> {
                     lastVideoPath = resultPath;
                     timecodeLabel.setText(formatTime(paths.size() * durationPerPhoto));
                     resetCompileUI();
-                    showInfo("Video compiled.", "Click Export to save the file.");
+
+                    // Auto-launch MediaPlayer with the compiled video
+                    try {
+                        new MediaPlayerController().launchPlayer(resultPath);
+                    } catch (Exception ex) {
+                        showError("Could not open player.", ex.getMessage());
+                    }
                 });
 
             } catch (IllegalArgumentException | IOException e) {
@@ -578,14 +580,25 @@ public class VideoController {
             showWarning("Nothing to export.", "Compile the video first.");
             return;
         }
+
+        FileChooser chooser = new FileChooser();
+        chooser.setTitle("Export video");
+        chooser.setInitialFileName("video_export.avi");
+        chooser.getExtensionFilters().add(
+                new FileChooser.ExtensionFilter("AVI Video", "*.avi"));
+
         Stage stage = getStage();
         if (stage == null) return;
-        String saved = SaveHelper.promptSaveDestination(
-                lastVideoPath, "Export Video", "AVI Video", "*.avi",
-                "video_export.avi", mainController, stage);
-        if (saved != null) {
-            showInfo("Exported.", "Saved to: " + saved);
-            new MediaPlayerController().launchPlayer(saved);
+
+        File dest = chooser.showSaveDialog(stage);
+        if (dest == null) return;
+
+        try {
+            Files.copy(Paths.get(lastVideoPath), dest.toPath(),
+                    StandardCopyOption.REPLACE_EXISTING);
+            showInfo("Exported.", "Saved to: " + dest.getAbsolutePath());
+        } catch (IOException e) {
+            showError("Export failed.", e.getMessage());
         }
     }
 
@@ -595,10 +608,6 @@ public class VideoController {
 
     public void setLibraryPaths(List<String> paths) {
         libraryPaths = paths != null ? new ArrayList<>(paths) : new ArrayList<>();
-    }
-
-    public void setMainController(MainController mc) {
-        this.mainController = mc;
     }
 
     public void setClipPaths(List<String> paths) {

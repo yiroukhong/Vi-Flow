@@ -80,19 +80,19 @@ public class VideoCompiler {
         // 2. Ensure output directory exists
         Files.createDirectories(Paths.get(outputDir));
 
-        // 3. Set up VideoWriter — MJPG codec, AVI container, 1280x720, 25fps
+        // 3. Set up VideoWriter — XVID codec, AVI container, 1280x720, 25fps
         String filename  = "video_" + System.currentTimeMillis() + ".avi";
-        String outPath = (outputDir + "/" + filename).replace("\\", "/");
+        String outPath   = outputDir + File.separator + filename;
 
         VideoWriter writer    = new VideoWriter();
-        int         fourcc    = VideoWriter.fourcc('M', 'J', 'P', 'G');
+        int         fourcc    = VideoWriter.fourcc('X', 'V', 'I', 'D');
         Size        frameSize = new Size(FRAME_WIDTH, FRAME_HEIGHT);
 
         writer.open(outPath, fourcc, FPS, frameSize, true);
 
         if (!writer.isOpened()) {
             throw new IOException("VideoWriter failed to open: " + outPath
-                    + " — check OpenCV videoio support is available");
+                    + " — check XVID codec is available on this machine");
         }
 
         // 4. Process each image
