@@ -935,7 +935,7 @@ public class MainController implements Initializable {
                 MetadataStore.getInstance().deleteAnnotation(currentPath);
                 loadAnnotationForImage(currentPath);
                 updateCounts();
-                refreshGrid();
+                updateThumbnailBadges(selectedIndex);
             }
         });
     }
