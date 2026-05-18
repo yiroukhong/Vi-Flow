@@ -82,7 +82,7 @@
             <!-- STUDIO section -->
             <Label text="STUDIO" styleClass="nav-section-label"/>
 
-            <HBox styleClass="nav-item" onMouseClicked="#handleNavEdit">
+            <HBox fx:id="navEdit" styleClass="nav-item" onMouseClicked="#handleNavEdit">
                 <VBox.margin><Insets top="2" right="8" bottom="2" left="8"/></VBox.margin>
                 <FontIcon iconLiteral="bi-circle-square" iconSize="16" styleClass="nav-icon-label"/>
                 <Label text="Edit" styleClass="nav-label">
@@ -96,7 +96,6 @@
                 <Label text="Mosaic" styleClass="nav-label">
                     <HBox.hgrow>ALWAYS</HBox.hgrow>
                 </Label>
-                <Label text="0" styleClass="nav-count"/>
             </HBox>
 
             <HBox fx:id="navVideo" styleClass="nav-item" onMouseClicked="#handleNavVideo">
@@ -105,7 +104,6 @@
                 <Label text="Video" styleClass="nav-label">
                     <HBox.hgrow>ALWAYS</HBox.hgrow>
                 </Label>
-                <Label text="0" styleClass="nav-count"/>
             </HBox>
 
             <HBox fx:id="navShare" styleClass="nav-item" onMouseClicked="#handleNavShare">
@@ -133,17 +131,11 @@
                 <HBox styleClass="content-header">
                     <Label text="Your Library" styleClass="page-title"/>
                     <Region HBox.hgrow="ALWAYS"/>
-                    <TextField fx:id="searchField" styleClass="search-field"
-                               promptText="Search by name, date, or tag"
-                               onAction="#handleSearch"/>
-                    <Button text="Import" styleClass="btn-secondary"
-                                    onAction="#handleImport">
+                    <Button fx:id="importBtn" text="Import" styleClass="btn-secondary">
                         <graphic>
                             <FontIcon iconLiteral="bi-box-arrow-in-down" iconSize="16"/>
                         </graphic>
                     </Button>
-                    <Button text="+ New Mosaic" styleClass="btn-primary"
-                            onAction="#handleNewMosaic"/>
                 </HBox>
 
                 <!-- Filter pills -->
@@ -195,19 +187,34 @@
                                text="Drop a folder anywhere on this window, or use&#10;import to point Vi-Flow at your photo library"
                                wrapText="true"/>
                         <HBox styleClass="empty-buttons">
-                            <Button text="Browse" styleClass="btn-secondary"
-                                    onAction="#handleBrowse">
+                            <Button text="Browse files" styleClass="btn-secondary"
+                                    onAction="#handleImport">
                                 <graphic>
                                     <FontIcon iconLiteral="bi-folder" iconSize="16"/>
                                 </graphic>
                             </Button>
                             <Button text="Import folder" styleClass="btn-primary"
-                                    onAction="#handleImport">
+                                    onAction="#handleImportFolder">
                                 <graphic>
                                     <FontIcon iconLiteral="bi-box-arrow-in-down" iconSize="16" iconColor="WHITE" />
                                 </graphic>
                             </Button>
                         </HBox>
+                    </VBox>
+
+                    <!-- Filtered empty state (Favorites / Annotated) -->
+                    <VBox fx:id="emptyStateFiltered" styleClass="empty-state"
+                          alignment="CENTER" spacing="12"
+                          visible="false" managed="false">
+                        <StackPane styleClass="empty-icon-bg" alignment="CENTER">
+                            <FontIcon fx:id="emptyFilteredIcon" iconLiteral="bi-heart"
+                                      iconSize="48" styleClass="empty-icon"/>
+                        </StackPane>
+                        <Label fx:id="emptyFilteredTitle" text=""
+                               styleClass="empty-title"/>
+                        <Label fx:id="emptyFilteredBody" text=""
+                               styleClass="empty-body" wrapText="true"
+                               textAlignment="CENTER"/>
                     </VBox>
 
                 </StackPane>

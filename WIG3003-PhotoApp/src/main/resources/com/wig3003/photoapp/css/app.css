@@ -457,3 +457,13 @@
     -fx-focus-color: transparent;
     -fx-faint-focus-color: transparent;
 }
+
+/* === Thumbnail filename label ============================= */
+.thumbnail-name-label {
+    -fx-font-size: 11px;
+    -fx-text-fill: #3D362C;
+    -fx-text-alignment: center;
+    -fx-alignment: center;
+    -fx-padding: 4 2 2 2;
+    -fx-wrap-text: true;
+}

@@ -13,66 +13,168 @@ import java.util.List;
 
 /**
  * Winnie — Multimedia Synthesis
- * Lays every tile image in a grid. No target image; every supplied photo
- * appears exactly once.
+ * Mosaic Generator — Contract §6
  */
 public class MosaicGenerator {
 
     /**
-     * Generates a mosaic that contains every image in {@code tilePaths}.
+     * Generates a mosaic from a target image and a pool of tile images.
      *
-     * @param tilePaths  paths to the tile images (all will be used)
-     * @param columns    number of columns in the grid (≥ 1)
-     * @param tileSize   pixel width and height of each cell (≥ 10)
-     * @param tileGap    gap in pixels between cells (≥ 0)
-     * @return           absolute path to the saved PNG
+     * @param tilePaths  List of file paths to tile images
+     * @param targetPath File path to the target image
+     * @param tileSize   Size (width and height) of each tile in pixels; must be >= 10
+     * @return Output path of the saved mosaic image
+     * @throws IOException              If target or tile images cannot be loaded
+     * @throws IllegalArgumentException If inputs are invalid
      */
-    public String generateMosaic(List<String> tilePaths,
-                                 int columns,
-                                 int tileSize,
-                                 int tileGap) throws IOException {
+    public String generateMosaic(List<String> tilePaths, String targetPath, int tileSize)
+            throws IOException {
+
+        // 1. Validate inputs
         if (tilePaths == null || tilePaths.isEmpty()) {
             throw new IllegalArgumentException("tilePaths must not be empty");
         }
-        columns  = Math.max(1, columns);
-        tileSize = Math.max(10, tileSize);
-        tileGap  = Math.max(0, tileGap);
+        if (targetPath == null || targetPath.isBlank()) {
+            throw new IllegalArgumentException("targetPath must not be null or blank");
+        }
+        if (tileSize < 10) {
+            throw new IllegalArgumentException("tileSize must be >= 10");
+        }
 
-        int n    = tilePaths.size();
-        int rows = (int) Math.ceil((double) n / columns);
+        // 2. Load target image — normalise path for OpenCV on Windows
+        String normTarget = normalisePath(targetPath);
+        Mat target = ImageUtils.loadMatFromPath(normTarget);
+        if (target == null || target.empty()) {
+            // Fallback: try Imgcodecs directly with forward-slash path
+            target = Imgcodecs.imread(normTarget);
+        }
+        if (target == null || target.empty()) {
+            throw new IOException("Failed to load target image: " + targetPath);
+        }
 
-        int stride   = tileSize + tileGap;
-        int canvasW  = columns * tileSize + Math.max(0, columns - 1) * tileGap;
-        int canvasH  = rows    * tileSize + Math.max(0, rows    - 1) * tileGap;
+        // 3. Normalise target to BGR 3-channel
+        target = normaliseToBGR(target);
 
-        // Load and resize all tile images
-        List<Mat> tiles = new ArrayList<>(n);
+        // 4. Compute grid dimensions
+        int cols = target.cols() / tileSize;
+        int rows = target.rows() / tileSize;
+
+        if (cols == 0 || rows == 0) {
+            throw new IllegalArgumentException(
+                "tileSize (" + tileSize + ") is larger than the target image dimensions "
+                + "(" + target.cols() + "x" + target.rows() + ")");
+        }
+
+        // 5. Load, normalise, and resize all tile images to tileSize x tileSize
+        List<Mat> tiles = new ArrayList<>();
         for (String p : tilePaths) {
-            Mat raw     = ImageUtils.loadMatFromPath(p);
+            if (p == null || p.isBlank()) continue;
+
+            String normP = normalisePath(p);
+            Mat t = ImageUtils.loadMatFromPath(normP);
+            if (t == null || t.empty()) {
+                // Fallback: try Imgcodecs directly
+                t = Imgcodecs.imread(normP);
+            }
+            if (t == null || t.empty()) {
+                System.err.println("Warning: could not load tile image, skipping: " + p);
+                continue;
+            }
+            t = normaliseToBGR(t);
             Mat resized = new Mat();
-            Imgproc.resize(raw, resized, new Size(tileSize, tileSize));
-            raw.release();
+            Imgproc.resize(t, resized, new Size(tileSize, tileSize));
             tiles.add(resized);
         }
 
-        // Dark background (#1F1B16 → BGR 22, 27, 31)
-        Mat mosaic = new Mat(canvasH, canvasW, CvType.CV_8UC3, new Scalar(22, 27, 31));
-
-        for (int i = 0; i < tiles.size(); i++) {
-            int c = i % columns;
-            int r = i / columns;
-            int x = c * stride;
-            int y = r * stride;
-            tiles.get(i).copyTo(mosaic.submat(new Rect(x, y, tileSize, tileSize)));
+        if (tiles.isEmpty()) {
+            throw new IllegalArgumentException("No valid tile images could be loaded from tilePaths");
         }
 
-        for (Mat t : tiles) t.release();
+        // 6. Build mosaic Mat
+        Mat mosaic = Mat.zeros(rows * tileSize, cols * tileSize, CvType.CV_8UC3);
 
+        // 7. For each grid cell, find best-matching tile by average BGR distance
+        for (int r = 0; r < rows; r++) {
+            for (int c = 0; c < cols; c++) {
+                Rect roi    = new Rect(c * tileSize, r * tileSize, tileSize, tileSize);
+                Mat  region = target.submat(roi);
+                Mat  tile   = bestMatchingTile(region, tiles);
+
+                if (tile.type() != CvType.CV_8UC3) {
+                    tile = normaliseToBGR(tile);
+                }
+
+                tile.copyTo(mosaic.submat(roi));
+            }
+        }
+
+        // 8. Save mosaic to data/output/
         Files.createDirectories(Paths.get("data/output"));
         String filename = "mosaic_" + System.currentTimeMillis() + ".png";
         String outPath  = "data/output/" + filename;
-        Imgcodecs.imwrite(outPath, mosaic);
-        mosaic.release();
+
+        if (!Imgcodecs.imwrite(outPath, mosaic)) {
+            throw new IOException("Imgcodecs.imwrite failed to save mosaic to: " + outPath);
+        }
+
         return outPath;
+    }
+
+    // -------------------------------------------------------------------------
+    // Private helpers
+    // -------------------------------------------------------------------------
+
+    /**
+     * Normalises a file path for OpenCV on Windows.
+     * Replaces backslashes with forward slashes.
+     */
+    private String normalisePath(String path) {
+        return path.replace("\\", "/");
+    }
+
+    /**
+     * Finds the best matching tile using mean BGR Euclidean distance.
+     */
+    private Mat bestMatchingTile(Mat region, List<Mat> tiles) {
+        Scalar regionMean = Core.mean(region);
+
+        Mat    bestTile = tiles.get(0);
+        double bestDist = Double.MAX_VALUE;
+
+        for (Mat tile : tiles) {
+            Scalar tileMean = Core.mean(tile);
+
+            double dist = Math.sqrt(
+                Math.pow(regionMean.val[0] - tileMean.val[0], 2) +
+                Math.pow(regionMean.val[1] - tileMean.val[1], 2) +
+                Math.pow(regionMean.val[2] - tileMean.val[2], 2)
+            );
+
+            if (dist < bestDist) {
+                bestDist = dist;
+                bestTile = tile;
+            }
+        }
+
+        return bestTile;
+    }
+
+    /**
+     * Converts a Mat to BGR 3-channel (CV_8UC3).
+     * Handles grayscale (1-ch) and BGRA (4-ch) inputs.
+     */
+    private Mat normaliseToBGR(Mat src) {
+        if (src.channels() == 3) return src;
+
+        Mat dst = new Mat();
+        if (src.channels() == 4) {
+            Imgproc.cvtColor(src, dst, Imgproc.COLOR_BGRA2BGR);
+        } else if (src.channels() == 1) {
+            Imgproc.cvtColor(src, dst, Imgproc.COLOR_GRAY2BGR);
+        } else {
+            System.err.println("Warning: unexpected channel count (" + src.channels() + ")");
+            Imgproc.cvtColor(src, dst, Imgproc.COLOR_BGRA2BGR);
+        }
+        return dst;
     }
 }

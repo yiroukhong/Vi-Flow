@@ -38,7 +38,17 @@ import javafx.scene.layout.VBox;
 import javafx.scene.paint.Color;
 import javafx.scene.shape.Rectangle;
 import javafx.scene.shape.StrokeType;
+import javafx.scene.control.Alert;
+import javafx.scene.control.ButtonType;
+import javafx.scene.control.ContextMenu;
+import javafx.scene.control.MenuItem;
+import javafx.scene.control.SeparatorMenuItem;
 import javafx.stage.DirectoryChooser;
+import javafx.stage.FileChooser;
+import java.nio.file.Files;
+import java.nio.file.Paths;
+import java.nio.file.StandardCopyOption;
+import org.kordamp.ikonli.javafx.FontIcon;
 
 // CW: added imports for DipEdit navigation
 import com.wig3003.photoapp.dip.DipEditController;
@@ -59,6 +69,7 @@ public class MainController implements Initializable {
     @FXML private HBox navLibrary;
     @FXML private HBox navFavorites;
     @FXML private HBox navAnnotated;
+    @FXML private HBox navEdit;
     @FXML private Label countLibrary;
     @FXML private Label countFavorites;
     @FXML private Label countAnnotated;
@@ -74,6 +85,10 @@ public class MainController implements Initializable {
     @FXML private ScrollPane gridScrollPane;
     @FXML private TilePane photoGrid;
     @FXML private VBox emptyState;
+    @FXML private VBox emptyStateFiltered;
+    @FXML private FontIcon emptyFilteredIcon;
+    @FXML private Label emptyFilteredTitle;
+    @FXML private Label emptyFilteredBody;
 
     // Detail view
     @FXML private VBox detailView;
@@ -88,6 +103,7 @@ public class MainController implements Initializable {
     @FXML private Label fontSizeLabel;
     @FXML private javafx.scene.control.ColorPicker fontColorPicker;
     @FXML private Label annotationFeedbackLabel;
+    @FXML private Button importBtn;
 
     private Image originalImage;
     private String userText = "";
@@ -169,7 +185,6 @@ public class MainController implements Initializable {
             double available = gridW.doubleValue() - 32;
             thumbSize = Math.max(100, (available - 4 * 8) / 5);
             photoGrid.setPrefTileWidth(thumbSize);
-            photoGrid.setPrefTileHeight(thumbSize);
         });
 
         // One-time layout listener to size the canvas
@@ -198,6 +213,7 @@ public class MainController implements Initializable {
         libraryView.sceneProperty().addListener((sceneObs, oldScene, newScene) -> {
             if (newScene != null && mainRoot == null) {
                 mainRoot = (BorderPane) newScene.getRoot();
+                newScene.setOnKeyPressed(e -> handleKeyPress(e.getCode()));
             }
         });
 
@@ -205,6 +221,8 @@ public class MainController implements Initializable {
         loadAppLibrary();
 
         shareViewController.setMainController(this);
+        mosaicViewController.setMainController(this);
+        videoViewController.setMainController(this);
 
         // Set default color picker value
         fontColorPicker.setValue(javafx.scene.paint.Color.WHITE);
@@ -228,6 +246,16 @@ public class MainController implements Initializable {
 
         // Setup drag on canvas
         setupAnnotationDrag();
+
+        // Import button context menu
+        ContextMenu importMenu = new ContextMenu();
+        MenuItem miFiles  = new MenuItem("Import files");
+        MenuItem miFolder = new MenuItem("Import folder");
+        miFiles.setOnAction(e -> handleImport());
+        miFolder.setOnAction(e -> handleImportFolder());
+        importMenu.getItems().addAll(miFiles, miFolder);
+        importBtn.setOnMouseClicked(e ->
+                importMenu.show(importBtn, javafx.geometry.Side.BOTTOM, 0, 0));
     }
     // ── Navigation ────────────────────────────────────────────────────────────
 
@@ -300,6 +328,7 @@ public class MainController implements Initializable {
                                 "/com/wig3003/photoapp/fxml/DipEdit.fxml"));
                 dipEditRoot       = loader.load();
                 dipEditController = (DipEditController) loader.getController();
+                dipEditController.setMainController(this);
             }
  
             String pathToPass = currentPath != null ? currentPath
@@ -308,10 +337,12 @@ public class MainController implements Initializable {
  
             if (pathToPass != null)
                 dipEditController.setInitialImage(pathToPass);
- 
+
+            dipEditController.setLibraryPaths(new ArrayList<>(allPaths));
             dipEditController.selectTab(tabName);
             mainRoot.setCenter(dipEditRoot);
- 
+            setNavActive(navEdit);
+
         } catch (Exception e) {
             e.printStackTrace();
         }
@@ -394,7 +425,7 @@ public class MainController implements Initializable {
     }
 
     private void setNavActive(HBox active) {
-        for (HBox item : List.of(navLibrary, navFavorites, navAnnotated, navMosaic, navVideo, navShare)) {
+        for (HBox item : List.of(navLibrary, navFavorites, navAnnotated, navEdit, navMosaic, navVideo, navShare)) {
             item.getStyleClass().remove("nav-active");
         }
         active.getStyleClass().add("nav-active");
@@ -404,44 +435,54 @@ public class MainController implements Initializable {
 
     @FXML
     private void handleImport() {
-        openDirectoryChooser();
+        FileChooser chooser = new FileChooser();
+        chooser.setTitle("Select Images");
+        chooser.getExtensionFilters().add(new FileChooser.ExtensionFilter(
+                "Image files", "*.png", "*.jpg", "*.jpeg", "*.bmp", "*.gif"));
+        List<File> files = chooser.showOpenMultipleDialog(
+                gridScrollPane.getScene().getWindow());
+        if (files == null || files.isEmpty()) return;
+        List<String> paths = new ArrayList<>();
+        for (File f : files) paths.add(f.getAbsolutePath());
+        addFilesToLibrary(paths);
+    }
+
+    @FXML
+    private void handleImportFolder() {
+        DirectoryChooser chooser = new DirectoryChooser();
+        chooser.setTitle("Select Photo Folder");
+        File dir = chooser.showDialog(gridScrollPane.getScene().getWindow());
+        if (dir == null) return;
+        File[] files = dir.listFiles(f -> f.isFile() && isImageFile(f.getName()));
+        if (files == null) return;
+        Arrays.sort(files, (a, b) -> a.getName().compareToIgnoreCase(b.getName()));
+        List<String> paths = new ArrayList<>();
+        for (File f : files) paths.add(f.getAbsolutePath());
+        addFilesToLibrary(paths);
     }
 
     @FXML
     private void handleBrowse() {
-        openDirectoryChooser();
+        handleImport();
     }
 
-    private void openDirectoryChooser() {
-        DirectoryChooser chooser = new DirectoryChooser();
-        chooser.setTitle("Select Photo Folder");
-        File dir = chooser.showDialog(gridScrollPane.getScene().getWindow());
-        if (dir != null) {
-            loadFolder(dir);
+    private void addFilesToLibrary(List<String> newPaths) {
+        for (String p : newPaths) {
+            if (!allPaths.contains(p)) allPaths.add(p);
         }
-    }
-
-    private void loadFolder(File dir) {
-        allPaths.clear();
-        selectedIndex = -1;
-        selectedCountLabel.setText("");
-
-        File[] files = dir.listFiles(f ->
-                f.isFile() && isImageFile(f.getName()));
-        if (files != null) {
-            Arrays.sort(files, (a, b) -> a.getName().compareToIgnoreCase(b.getName()));
-            for (File f : files) {
-                allPaths.add(f.getAbsolutePath());
-            }
-        }
-
-        // CW: remember imported folder images as app library images
         MetadataStore.getInstance().saveLibraryImagePaths(allPaths);
-        // CW: change end
-
-
         applyFilter();
         updateCounts();
+    }
+
+    public void addToLibrary(String absolutePath) {
+        if (absolutePath == null || absolutePath.isBlank()) return;
+        if (!allPaths.contains(absolutePath)) {
+            allPaths.add(absolutePath);
+            MetadataStore.getInstance().saveLibraryImagePath(absolutePath);
+            applyFilter();
+            updateCounts();
+        }
     }
 
     
@@ -508,7 +549,7 @@ public class MainController implements Initializable {
         selectionOverlays.clear();
 
         if (displayPaths.isEmpty()) {
-            showEmptyState(true);
+            showAppropriateEmptyState();
             return;
         }
 
@@ -518,11 +559,37 @@ public class MainController implements Initializable {
         }
     }
 
+    private void showAppropriateEmptyState() {
+        if ("FAVOURITES".equals(activeFilter)) {
+            showFilteredEmptyState("bi-heart", "No favourites yet",
+                    "Nothing here yet. Mark images as favourites in the library to see them here.");
+        } else if ("ANNOTATED".equals(activeFilter)) {
+            showFilteredEmptyState("bi-pencil-square", "No annotated images yet",
+                    "Nothing here yet. Open an image in the library and add an annotation to see it here.");
+        } else {
+            showEmptyState(true);
+        }
+    }
+
+    private void showFilteredEmptyState(String icon, String title, String body) {
+        emptyFilteredIcon.setIconLiteral(icon);
+        emptyFilteredTitle.setText(title);
+        emptyFilteredBody.setText(body);
+        emptyState.setVisible(false);
+        emptyState.setManaged(false);
+        gridScrollPane.setVisible(false);
+        gridScrollPane.setManaged(false);
+        emptyStateFiltered.setVisible(true);
+        emptyStateFiltered.setManaged(true);
+    }
+
     private void showEmptyState(boolean empty) {
         emptyState.setVisible(empty);
         emptyState.setManaged(empty);
         gridScrollPane.setVisible(!empty);
         gridScrollPane.setManaged(!empty);
+        emptyStateFiltered.setVisible(false);
+        emptyStateFiltered.setManaged(false);
     }
 
     private Node createThumbnailCell(String path, int index) {
@@ -581,7 +648,61 @@ public class MainController implements Initializable {
             }
         });
 
-        return cell;
+        // Right-click context menu
+        String filename = Paths.get(path).getFileName().toString();
+        ContextMenu ctxMenu = new ContextMenu();
+
+        MenuItem exportItem = new MenuItem("Export to device");
+        exportItem.setOnAction(e -> {
+            FileChooser fc = new FileChooser();
+            fc.setTitle("Export image");
+            fc.setInitialFileName(filename);
+            fc.getExtensionFilters().add(
+                    new FileChooser.ExtensionFilter("Image files",
+                            "*.png", "*.jpg", "*.jpeg", "*.bmp"));
+            File dest = fc.showSaveDialog(cell.getScene().getWindow());
+            if (dest != null) {
+                try {
+                    Files.copy(Paths.get(path), dest.toPath(), StandardCopyOption.REPLACE_EXISTING);
+                    Alert info = new Alert(Alert.AlertType.INFORMATION);
+                    info.setTitle("Export");
+                    info.setHeaderText(null);
+                    info.setContentText("Exported successfully.");
+                    info.showAndWait();
+                } catch (java.io.IOException ex) {
+                    Alert err = new Alert(Alert.AlertType.ERROR);
+                    err.setTitle("Export failed");
+                    err.setHeaderText(null);
+                    err.setContentText("Could not export: " + ex.getMessage());
+                    err.showAndWait();
+                }
+            }
+        });
+
+        MenuItem deleteItem = new MenuItem("Remove from library");
+        deleteItem.setStyle("-fx-text-fill: #B0432B;");
+        deleteItem.setOnAction(e -> {
+            selectImage(index);
+            deleteSelectedImages();
+        });
+
+        ctxMenu.getItems().addAll(exportItem, new SeparatorMenuItem(), deleteItem);
+        cell.setOnContextMenuRequested(e ->
+                ctxMenu.show(cell, e.getScreenX(), e.getScreenY()));
+
+        // Filename label below thumbnail
+        Label nameLabel = new Label(filename);
+        nameLabel.getStyleClass().add("thumbnail-name-label");
+        nameLabel.setWrapText(true);
+        nameLabel.setMaxWidth(thumbSize);
+        nameLabel.setMaxHeight(34);
+        nameLabel.setAlignment(Pos.CENTER);
+
+        VBox wrapper = new VBox(cell, nameLabel);
+        wrapper.setAlignment(Pos.TOP_CENTER);
+        wrapper.setSpacing(0);
+        wrapper.setPrefWidth(thumbSize);
+        return wrapper;
     }
 
     private StackPane buildHeartBadge() {
@@ -774,6 +895,7 @@ public class MainController implements Initializable {
                 && mainRoot.getCenter() == dipEditRoot) {
             restoreLibraryCenter();
         }
+        setNavActive(navLibrary);
     }
     // CW: change end
     
@@ -911,6 +1033,46 @@ public class MainController implements Initializable {
     }
     @FXML private void handleSearch()    { /* search logic */ }
 
+    // ── Delete selected images ────────────────────────────────────────────────
+
+    private void deleteSelectedImages() {
+        if (selectedIndices.isEmpty()) return;
+
+        String contentText;
+        if (selectedIndices.size() == 1) {
+            int idx = selectedIndices.iterator().next();
+            String filename = Paths.get(displayPaths.get(idx)).getFileName().toString();
+            contentText = "Remove \"" + filename + "\" from the library?";
+        } else {
+            contentText = "Remove " + selectedIndices.size() + " images from the library?";
+        }
+
+        Alert alert = new Alert(Alert.AlertType.CONFIRMATION);
+        alert.setTitle("Remove from library");
+        alert.setHeaderText(null);
+        alert.setContentText(contentText);
+        ButtonType removeBtn = new ButtonType("Remove");
+        alert.getButtonTypes().setAll(removeBtn, ButtonType.CANCEL);
+
+        alert.showAndWait().ifPresent(result -> {
+            if (result == removeBtn) {
+                List<Integer> sorted = new ArrayList<>(selectedIndices);
+                sorted.sort((a, b) -> b - a);
+                for (int i : sorted) {
+                    String path = displayPaths.get(i);
+                    allPaths.remove(path);
+                    MetadataStore.getInstance().deleteAnnotation(path);
+                    favourites.remove(path);
+                }
+                MetadataStore.getInstance().saveLibraryImagePaths(allPaths);
+                clearSelectionStyle();
+                selectedIndex = -1;
+                applyFilter();
+                updateCounts();
+            }
+        });
+    }
+
     // ── Keyboard navigation ───────────────────────────────────────────────────
 
     private void handleKeyPress(KeyCode code) {
@@ -932,6 +1094,11 @@ public class MainController implements Initializable {
                 case DOWN:  navigateGrid(+cols);  break;
                 case ENTER: if (selectedIndex >= 0) openDetail(selectedIndex); break;
                 case ESCAPE: clearSelectionStyle(); selectedIndex = -1; break;
+                case DELETE:
+                case BACK_SPACE:
+                    if (libraryView.isVisible() && !selectedIndices.isEmpty())
+                        deleteSelectedImages();
+                    break;
                 default: break;
             }
         }
