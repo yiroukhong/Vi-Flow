@@ -38,10 +38,16 @@ import javafx.scene.layout.VBox;
 import javafx.scene.paint.Color;
 import javafx.scene.shape.Rectangle;
 import javafx.scene.shape.StrokeType;
+import javafx.scene.control.Alert;
+import javafx.scene.control.ButtonType;
 import javafx.scene.control.ContextMenu;
 import javafx.scene.control.MenuItem;
+import javafx.scene.control.SeparatorMenuItem;
 import javafx.stage.DirectoryChooser;
 import javafx.stage.FileChooser;
+import java.nio.file.Files;
+import java.nio.file.Paths;
+import java.nio.file.StandardCopyOption;
 import org.kordamp.ikonli.javafx.FontIcon;
 
 // CW: added imports for DipEdit navigation
@@ -178,7 +184,6 @@ public class MainController implements Initializable {
             double available = gridW.doubleValue() - 32;
             thumbSize = Math.max(100, (available - 4 * 8) / 5);
             photoGrid.setPrefTileWidth(thumbSize);
-            photoGrid.setPrefTileHeight(thumbSize);
         });
 
         // One-time layout listener to size the canvas
@@ -207,6 +212,7 @@ public class MainController implements Initializable {
         libraryView.sceneProperty().addListener((sceneObs, oldScene, newScene) -> {
             if (newScene != null && mainRoot == null) {
                 mainRoot = (BorderPane) newScene.getRoot();
+                newScene.setOnKeyPressed(e -> handleKeyPress(e.getCode()));
             }
         });
 
@@ -640,7 +646,61 @@ public class MainController implements Initializable {
             }
         });
 
-        return cell;
+        // Right-click context menu
+        String filename = Paths.get(path).getFileName().toString();
+        ContextMenu ctxMenu = new ContextMenu();
+
+        MenuItem exportItem = new MenuItem("Export to device");
+        exportItem.setOnAction(e -> {
+            FileChooser fc = new FileChooser();
+            fc.setTitle("Export image");
+            fc.setInitialFileName(filename);
+            fc.getExtensionFilters().add(
+                    new FileChooser.ExtensionFilter("Image files",
+                            "*.png", "*.jpg", "*.jpeg", "*.bmp"));
+            File dest = fc.showSaveDialog(cell.getScene().getWindow());
+            if (dest != null) {
+                try {
+                    Files.copy(Paths.get(path), dest.toPath(), StandardCopyOption.REPLACE_EXISTING);
+                    Alert info = new Alert(Alert.AlertType.INFORMATION);
+                    info.setTitle("Export");
+                    info.setHeaderText(null);
+                    info.setContentText("Exported successfully.");
+                    info.showAndWait();
+                } catch (java.io.IOException ex) {
+                    Alert err = new Alert(Alert.AlertType.ERROR);
+                    err.setTitle("Export failed");
+                    err.setHeaderText(null);
+                    err.setContentText("Could not export: " + ex.getMessage());
+                    err.showAndWait();
+                }
+            }
+        });
+
+        MenuItem deleteItem = new MenuItem("Remove from library");
+        deleteItem.setStyle("-fx-text-fill: #B0432B;");
+        deleteItem.setOnAction(e -> {
+            selectImage(index);
+            deleteSelectedImages();
+        });
+
+        ctxMenu.getItems().addAll(exportItem, new SeparatorMenuItem(), deleteItem);
+        cell.setOnContextMenuRequested(e ->
+                ctxMenu.show(cell, e.getScreenX(), e.getScreenY()));
+
+        // Filename label below thumbnail
+        Label nameLabel = new Label(filename);
+        nameLabel.getStyleClass().add("thumbnail-name-label");
+        nameLabel.setWrapText(true);
+        nameLabel.setMaxWidth(thumbSize);
+        nameLabel.setMaxHeight(34);
+        nameLabel.setAlignment(Pos.CENTER);
+
+        VBox wrapper = new VBox(cell, nameLabel);
+        wrapper.setAlignment(Pos.TOP_CENTER);
+        wrapper.setSpacing(0);
+        wrapper.setPrefWidth(thumbSize);
+        return wrapper;
     }
 
     private StackPane buildHeartBadge() {
@@ -970,6 +1030,46 @@ public class MainController implements Initializable {
     }
     @FXML private void handleSearch()    { /* search logic */ }
 
+    // ── Delete selected images ────────────────────────────────────────────────
+
+    private void deleteSelectedImages() {
+        if (selectedIndices.isEmpty()) return;
+
+        String contentText;
+        if (selectedIndices.size() == 1) {
+            int idx = selectedIndices.iterator().next();
+            String filename = Paths.get(displayPaths.get(idx)).getFileName().toString();
+            contentText = "Remove \"" + filename + "\" from the library?";
+        } else {
+            contentText = "Remove " + selectedIndices.size() + " images from the library?";
+        }
+
+        Alert alert = new Alert(Alert.AlertType.CONFIRMATION);
+        alert.setTitle("Remove from library");
+        alert.setHeaderText(null);
+        alert.setContentText(contentText);
+        ButtonType removeBtn = new ButtonType("Remove");
+        alert.getButtonTypes().setAll(removeBtn, ButtonType.CANCEL);
+
+        alert.showAndWait().ifPresent(result -> {
+            if (result == removeBtn) {
+                List<Integer> sorted = new ArrayList<>(selectedIndices);
+                sorted.sort((a, b) -> b - a);
+                for (int i : sorted) {
+                    String path = displayPaths.get(i);
+                    allPaths.remove(path);
+                    MetadataStore.getInstance().deleteAnnotation(path);
+                    favourites.remove(path);
+                }
+                MetadataStore.getInstance().saveLibraryImagePaths(allPaths);
+                clearSelectionStyle();
+                selectedIndex = -1;
+                applyFilter();
+                updateCounts();
+            }
+        });
+    }
+
     // ── Keyboard navigation ───────────────────────────────────────────────────
 
     private void handleKeyPress(KeyCode code) {
@@ -991,6 +1091,11 @@ public class MainController implements Initializable {
                 case DOWN:  navigateGrid(+cols);  break;
                 case ENTER: if (selectedIndex >= 0) openDetail(selectedIndex); break;
                 case ESCAPE: clearSelectionStyle(); selectedIndex = -1; break;
+                case DELETE:
+                case BACK_SPACE:
+                    if (libraryView.isVisible() && !selectedIndices.isEmpty())
+                        deleteSelectedImages();
+                    break;
                 default: break;
             }
         }

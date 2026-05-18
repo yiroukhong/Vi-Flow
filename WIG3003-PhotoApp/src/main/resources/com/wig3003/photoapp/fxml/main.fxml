@@ -133,16 +133,11 @@
                 <HBox styleClass="content-header">
                     <Label text="Your Library" styleClass="page-title"/>
                     <Region HBox.hgrow="ALWAYS"/>
-                    <TextField fx:id="searchField" styleClass="search-field"
-                               promptText="Search by name, date, or tag"
-                               onAction="#handleSearch"/>
                     <Button fx:id="importBtn" text="Import" styleClass="btn-secondary">
                         <graphic>
                             <FontIcon iconLiteral="bi-box-arrow-in-down" iconSize="16"/>
                         </graphic>
                     </Button>
-                    <Button text="+ New Mosaic" styleClass="btn-primary"
-                            onAction="#handleNewMosaic"/>
                 </HBox>
 
                 <!-- Filter pills -->
