@@ -1,6 +1,8 @@
 package com.wig3003.photoapp.synthesis;
 
-//import com.wig3003.photoapp.social.EmailSender; 
+
+import com.wig3003.photoapp.social.EmailSender;
+
 import javafx.scene.Scene;
 import javafx.scene.control.Button;
 import javafx.scene.control.Label;
@@ -22,35 +24,41 @@ import java.io.File;
 public class MediaPlayerController {
 
     public void launchPlayer(String videoPath) {
-        // 1. Requirement check: Validate input [cite: 76]
+
+        // 1. Validate input
         if (videoPath == null || videoPath.isBlank()) {
             throw new IllegalArgumentException("videoPath must not be null or empty");
         }
 
-        // 2. Create JavaFX Media and MediaPlayer [cite: 76]
         File f = new File(videoPath);
-        Media media = new Media(f.toURI().toString());
+        if (!f.exists()) {
+            throw new IllegalArgumentException("Video file not found: " + videoPath);
+        }
+
+        // 2. Create JavaFX Media and MediaPlayer
+        Media       media  = new Media(f.toURI().toString());
         MediaPlayer player = new MediaPlayer(media);
 
-        // 3. Create MediaView and bind to player [cite: 76]
+        // 3. Create MediaView and bind to player
         MediaView mediaView = new MediaView(player);
-        mediaView.setFitWidth(800); 
+        mediaView.setFitWidth(800);
         mediaView.setPreserveRatio(true);
 
-        // 4. Build playback controls [cite: 76]
-        Button playBtn = new Button("Play");
-        Button pauseBtn = new Button("Pause");
+        // 4. Build playback controls
+        Button playBtn   = new Button("Play");
+        Button pauseBtn  = new Button("Pause");
         Slider seekSlider = new Slider(0, 1, 0);
-        Label timeLabel = new Label("0:00");
-        
-        // Share via Email button requirement [cite: 77]
+        seekSlider.setPrefWidth(300); // ensure slider is usable
+        Label  timeLabel = new Label("0:00");
+
+        // Share via Email button — Contract §7
         Button shareBtn = new Button("Share via Email");
 
-        // 5. Wire play/pause buttons [cite: 76]
-        playBtn.setOnAction(e -> player.play());
+        // 5. Wire play/pause buttons
+        playBtn.setOnAction(e  -> player.play());
         pauseBtn.setOnAction(e -> player.pause());
 
-        // 6. Wire seek slider and time label [cite: 76]
+        // 6. Wire seek slider and time label
         player.currentTimeProperty().addListener((obs, old, now) -> {
             double dur = player.getTotalDuration().toSeconds();
             if (dur > 0) {
@@ -60,28 +68,29 @@ public class MediaPlayerController {
         });
 
         seekSlider.setOnMouseReleased(e -> {
-            Duration target = player.getTotalDuration().multiply(seekSlider.getValue());
+            Duration target = player.getTotalDuration()
+                    .multiply(seekSlider.getValue());
             player.seek(target);
         });
 
-        // 7. Wire Share button to Sam's EmailSender [cite: 77]
+        // 7. Wire Share button to Sam's EmailSender
         shareBtn.setOnAction(e -> {
-            // EmailSender.launchComposeWindow(videoPath, "VIDEO");
+            EmailSender.launchComposeWindow(videoPath, "VIDEO");
         });
 
-        // 8. Assemble layout and open popup Stage [cite: 76, 77]
+        // 8. Assemble layout and open popup Stage
         HBox controlBox = new HBox(8, playBtn, pauseBtn, seekSlider, timeLabel, shareBtn);
-        VBox layout = new VBox(8, mediaView, controlBox);
+        VBox layout     = new VBox(8, mediaView, controlBox);
 
-        // Requirement: Launch in separate window [cite: 77]
-        Stage popup = new Stage(); 
+        // Contract §6 — launch in a separate non-blocking popup window
+        Stage popup = new Stage();
         popup.setScene(new Scene(layout));
         popup.setTitle("Video Player");
-        popup.show();
+        popup.show(); // non-blocking
     }
 
     /**
-     * Helper to format Duration into m:ss
+     * Formats a Duration into m:ss display string.
      */
     private String formatTime(Duration elapsed) {
         int minutes = (int) elapsed.toMinutes();
