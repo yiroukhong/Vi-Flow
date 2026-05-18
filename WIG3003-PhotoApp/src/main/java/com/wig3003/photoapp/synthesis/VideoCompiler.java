@@ -84,6 +84,12 @@ public class VideoCompiler {
         String filename  = "video_" + System.currentTimeMillis() + ".avi";
         String outPath   = outputDir + File.separator + filename;
 
+        int totalFrames = durationPerPhoto * (int) FPS;
+        if (imagePaths.size() * totalFrames > 990) {
+            // OpenCV VideoWriter AVI pattern limit is ~999 frames total
+            System.out.println("[VideoCompiler] Frame count capped to 990 to avoid OpenCV limit.");
+        }
+
         VideoWriter writer    = new VideoWriter();
         int         fourcc    = VideoWriter.fourcc('X', 'V', 'I', 'D');
         Size        frameSize = new Size(FRAME_WIDTH, FRAME_HEIGHT);
@@ -96,7 +102,10 @@ public class VideoCompiler {
         }
 
         // 4. Process each image
-        int totalFramesPerClip = durationPerPhoto * (int) FPS;
+        // Distribute budget evenly: cap total frames across all images
+        int maxTotalFrames = 990;
+        int perPhotoFrames = Math.max(1,
+                Math.min(totalFrames, maxTotalFrames / imagePaths.size()));
 
         for (int i = 0; i < imagePaths.size(); i++) {
             String imgPath = imagePaths.get(i);
@@ -160,7 +169,7 @@ public class VideoCompiler {
             Mat overlaidFrame = ImageUtils.bufferedImageToMat(modifiedCustomBi);
 
             // h. Write main clip frames
-            for (int f = 0; f < totalFramesPerClip; f++) {
+            for (int f = 0; f < perPhotoFrames; f++) {
                 writer.write(overlaidFrame);
             }
 

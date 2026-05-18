@@ -222,7 +222,6 @@ public class MainController implements Initializable {
 
         shareViewController.setMainController(this);
         mosaicViewController.setMainController(this);
-        videoViewController.setMainController(this);
 
         // Set default color picker value
         fontColorPicker.setValue(javafx.scene.paint.Color.WHITE);
