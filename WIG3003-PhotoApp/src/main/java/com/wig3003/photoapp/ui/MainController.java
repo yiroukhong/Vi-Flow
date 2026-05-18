@@ -623,6 +623,25 @@ public class MainController implements Initializable {
             }
         });
 
+        String favLabel = favourites.contains(path) ? "Remove from Favorites" : "Add to Favorites";
+        MenuItem favItem = new MenuItem(favLabel);
+        favItem.setOnAction(e -> {
+            if (favourites.contains(path)) {
+                favourites.remove(path);
+            } else {
+                favourites.add(path);
+            }
+            updateCounts();
+            int pathIndex = displayPaths.indexOf(path);
+            if (pathIndex >= 0) updateThumbnailBadges(pathIndex);
+            if (path.equals(currentPath)) {
+                boolean nowFav = favourites.contains(path);
+                heartButton.setText(nowFav ? "♥" : "♡");
+                if (nowFav) heartButton.getStyleClass().add("active");
+                else heartButton.getStyleClass().remove("active");
+            }
+        });
+
         MenuItem deleteItem = new MenuItem("Remove from library");
         deleteItem.setStyle("-fx-text-fill: #B0432B;");
         deleteItem.setOnAction(e -> {
@@ -630,7 +649,8 @@ public class MainController implements Initializable {
             deleteSelectedImages();
         });
 
-        ctxMenu.getItems().addAll(exportItem, new SeparatorMenuItem(), deleteItem);
+        ctxMenu.getItems().addAll(favItem, new SeparatorMenuItem(),
+                exportItem, new SeparatorMenuItem(), deleteItem);
         cell.setOnContextMenuRequested(e ->
                 ctxMenu.show(cell, e.getScreenX(), e.getScreenY()));
 
