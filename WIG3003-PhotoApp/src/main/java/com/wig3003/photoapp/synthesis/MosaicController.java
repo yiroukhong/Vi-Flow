@@ -1,7 +1,9 @@
 package com.wig3003.photoapp.synthesis;
 
+import com.wig3003.photoapp.ui.MainController;
 import com.wig3003.photoapp.util.FavouritesManager;
 import com.wig3003.photoapp.util.ImageUtils;
+import com.wig3003.photoapp.util.SaveHelper;
 
 import javafx.application.Platform;
 import javafx.fxml.FXML;
@@ -84,6 +86,8 @@ public class MosaicController {
     // STATE
     // =========================================================
 
+    private MainController mainController = null;
+
     private List<String> tilePaths        = new ArrayList<>();
     private List<String> libraryPaths     = new ArrayList<>();
     private String       targetPath       = null;
@@ -120,6 +124,10 @@ public class MosaicController {
 
     public void setLibraryPaths(List<String> paths) {
         this.libraryPaths = paths != null ? new ArrayList<>(paths) : new ArrayList<>();
+    }
+
+    public void setMainController(MainController mc) {
+        this.mainController = mc;
     }
 
     // =========================================================
@@ -345,25 +353,13 @@ public class MosaicController {
             showWarning("No mosaic to export.", "Generate a mosaic first.");
             return;
         }
-
-        FileChooser chooser = new FileChooser();
-        chooser.setTitle("Export mosaic");
-        chooser.setInitialFileName("mosaic_export.png");
-        chooser.getExtensionFilters().add(
-                new FileChooser.ExtensionFilter("PNG Image", "*.png"));
-
         Stage stage = getStage();
         if (stage == null) return;
-
-        File dest = chooser.showSaveDialog(stage);
-        if (dest == null) return;
-
-        try {
-            Files.copy(Paths.get(lastMosaicPath), dest.toPath(),
-                    StandardCopyOption.REPLACE_EXISTING);
-            showInfo("Exported successfully.", "Saved to: " + dest.getAbsolutePath());
-        } catch (IOException e) {
-            showError("Export failed.", e.getMessage());
+        String saved = SaveHelper.promptSaveDestination(
+                lastMosaicPath, "Export Mosaic", "PNG Image", "*.png",
+                "mosaic_export.png", mainController, stage);
+        if (saved != null) {
+            showInfo("Exported successfully.", "Saved to: " + saved);
         }
     }
 

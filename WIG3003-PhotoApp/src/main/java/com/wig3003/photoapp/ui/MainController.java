@@ -214,6 +214,8 @@ public class MainController implements Initializable {
         loadAppLibrary();
 
         shareViewController.setMainController(this);
+        mosaicViewController.setMainController(this);
+        videoViewController.setMainController(this);
 
         // Set default color picker value
         fontColorPicker.setValue(javafx.scene.paint.Color.WHITE);
@@ -319,6 +321,7 @@ public class MainController implements Initializable {
                                 "/com/wig3003/photoapp/fxml/DipEdit.fxml"));
                 dipEditRoot       = loader.load();
                 dipEditController = (DipEditController) loader.getController();
+                dipEditController.setMainController(this);
             }
  
             String pathToPass = currentPath != null ? currentPath
@@ -462,6 +465,16 @@ public class MainController implements Initializable {
         MetadataStore.getInstance().saveLibraryImagePaths(allPaths);
         applyFilter();
         updateCounts();
+    }
+
+    public void addToLibrary(String absolutePath) {
+        if (absolutePath == null || absolutePath.isBlank()) return;
+        if (!allPaths.contains(absolutePath)) {
+            allPaths.add(absolutePath);
+            MetadataStore.getInstance().saveLibraryImagePath(absolutePath);
+            applyFilter();
+            updateCounts();
+        }
     }
 
     

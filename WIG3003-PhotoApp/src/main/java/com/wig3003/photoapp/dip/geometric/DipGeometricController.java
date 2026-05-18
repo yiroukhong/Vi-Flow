@@ -514,9 +514,14 @@ public class DipGeometricController {
     // =========================================================
 
     private java.util.List<String> libraryPaths = new java.util.ArrayList<>();
+    private com.wig3003.photoapp.ui.MainController mainController = null;
 
     public void setLibraryPaths(java.util.List<String> paths) {
         this.libraryPaths = paths != null ? paths : new java.util.ArrayList<>();
+    }
+
+    public void setMainController(com.wig3003.photoapp.ui.MainController mc) {
+        this.mainController = mc;
     }
 
     @FXML

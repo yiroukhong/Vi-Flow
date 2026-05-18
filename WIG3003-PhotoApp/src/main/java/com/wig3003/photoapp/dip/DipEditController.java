@@ -96,6 +96,9 @@ public class DipEditController {
     /** Library paths passed from MainController. Empty until set. */
     private java.util.List<String> libraryPaths = new java.util.ArrayList<>();
 
+    /** MainController reference for Save-to-Library propagation. */
+    private com.wig3003.photoapp.ui.MainController mainController = null;
+
     // ── INITIALIZE ────────────────────────────────────────────────────────
 
     @FXML
@@ -118,6 +121,25 @@ public class DipEditController {
     /** Called by MainController to pass the full library path list. */
     public void setLibraryPaths(java.util.List<String> paths) {
         this.libraryPaths = paths != null ? paths : new java.util.ArrayList<>();
+    }
+
+    /** Called by MainController to wire save-to-library callbacks. Propagates to cached tabs. */
+    public void setMainController(com.wig3003.photoapp.ui.MainController mc) {
+        this.mainController = mc;
+        for (Object ctrl : cachedControllers.values()) {
+            passMainControllerToCtrl(ctrl);
+        }
+    }
+
+    private void passMainControllerToCtrl(Object ctrl) {
+        if (ctrl instanceof DipGeometricController)
+            ((DipGeometricController) ctrl).setMainController(mainController);
+        else if (ctrl instanceof DipExtractController)
+            ((DipExtractController) ctrl).setMainController(mainController);
+        else if (ctrl instanceof DipRadiometricController)
+            ((DipRadiometricController) ctrl).setMainController(mainController);
+        else if (ctrl instanceof DipAestheticController)
+            ((DipAestheticController) ctrl).setMainController(mainController);
     }
 
     /**
@@ -205,6 +227,9 @@ public class DipEditController {
 
                 cachedRoots.put(tab, panel);
                 if (ctrl != null) cachedControllers.put(tab, ctrl);
+
+                // Always propagate mainController on first load
+                if (ctrl != null) passMainControllerToCtrl(ctrl);
 
                 // Pass image path on first load only
                 if (pendingImagePath != null) {

@@ -1,6 +1,8 @@
 package com.wig3003.photoapp.synthesis;
 
+import com.wig3003.photoapp.ui.MainController;
 import com.wig3003.photoapp.util.FavouritesManager;
+import com.wig3003.photoapp.util.SaveHelper;
 
 import javafx.animation.KeyFrame;
 import javafx.animation.Timeline;
@@ -98,6 +100,8 @@ public class VideoController {
     // =========================================================
     // STATE
     // =========================================================
+
+    private MainController            mainController    = null;
 
     private List<String>              clipPaths         = new ArrayList<>();
     private List<String>              libraryPaths      = new ArrayList<>();
@@ -574,26 +578,14 @@ public class VideoController {
             showWarning("Nothing to export.", "Compile the video first.");
             return;
         }
-
-        FileChooser chooser = new FileChooser();
-        chooser.setTitle("Export video");
-        chooser.setInitialFileName("video_export.avi");
-        chooser.getExtensionFilters().add(
-                new FileChooser.ExtensionFilter("AVI Video", "*.avi"));
-
         Stage stage = getStage();
         if (stage == null) return;
-
-        File dest = chooser.showSaveDialog(stage);
-        if (dest == null) return;
-
-        try {
-            Files.copy(Paths.get(lastVideoPath), dest.toPath(),
-                    StandardCopyOption.REPLACE_EXISTING);
-            showInfo("Exported.", "Saved to: " + dest.getAbsolutePath());
-            new MediaPlayerController().launchPlayer(dest.getAbsolutePath());
-        } catch (IOException e) {
-            showError("Export failed.", e.getMessage());
+        String saved = SaveHelper.promptSaveDestination(
+                lastVideoPath, "Export Video", "AVI Video", "*.avi",
+                "video_export.avi", mainController, stage);
+        if (saved != null) {
+            showInfo("Exported.", "Saved to: " + saved);
+            new MediaPlayerController().launchPlayer(saved);
         }
     }
 
@@ -603,6 +595,10 @@ public class VideoController {
 
     public void setLibraryPaths(List<String> paths) {
         libraryPaths = paths != null ? new ArrayList<>(paths) : new ArrayList<>();
+    }
+
+    public void setMainController(MainController mc) {
+        this.mainController = mc;
     }
 
     public void setClipPaths(List<String> paths) {
