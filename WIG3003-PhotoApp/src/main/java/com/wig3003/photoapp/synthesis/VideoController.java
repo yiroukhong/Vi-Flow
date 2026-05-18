@@ -490,7 +490,7 @@ public class VideoController {
     }
 
     // =========================================================
-    // COMPILE — reads position toggle and passes to VideoCompiler
+    // COMPILE — auto-launches MediaPlayer after compile
     // =========================================================
 
     @FXML
@@ -516,26 +516,32 @@ public class VideoController {
         if (transFade.isSelected())       transitionType = "FADE";
         else if (transCross.isSelected()) transitionType = "CROSS";
 
-        // Read position toggle — FIX: was never read before
+        // Read position toggle
         String textPosition = "BOTTOM";
         if (posTop.isSelected())         textPosition = "TOP";
         else if (posCenter.isSelected()) textPosition = "CENTER";
 
-        List<String>  paths      = new ArrayList<>(clipPaths);
-        final String  transition = transitionType;
-        final String  position   = textPosition;
+        List<String> paths      = new ArrayList<>(clipPaths);
+        final String transition = transitionType;
+        final String position   = textPosition;
 
         compileThread = new Thread(() -> {
             try {
                 String resultPath = new VideoCompiler()
                         .compileVideo(paths, durationPerPhoto, overlayText,
-                                outputDir, transition, position);  // ← position now passed
+                                outputDir, transition, position);
 
                 Platform.runLater(() -> {
                     lastVideoPath = resultPath;
                     timecodeLabel.setText(formatTime(paths.size() * durationPerPhoto));
                     resetCompileUI();
-                    showInfo("Video compiled.", "Click Export to save the file.");
+
+                    // Auto-launch MediaPlayer with the compiled video
+                    try {
+                        new MediaPlayerController().launchPlayer(resultPath);
+                    } catch (Exception ex) {
+                        showError("Could not open player.", ex.getMessage());
+                    }
                 });
 
             } catch (IllegalArgumentException | IOException e) {
@@ -591,7 +597,6 @@ public class VideoController {
             Files.copy(Paths.get(lastVideoPath), dest.toPath(),
                     StandardCopyOption.REPLACE_EXISTING);
             showInfo("Exported.", "Saved to: " + dest.getAbsolutePath());
-            new MediaPlayerController().launchPlayer(dest.getAbsolutePath());
         } catch (IOException e) {
             showError("Export failed.", e.getMessage());
         }
