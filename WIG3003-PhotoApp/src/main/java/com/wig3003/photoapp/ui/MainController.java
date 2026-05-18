@@ -97,19 +97,20 @@ public class MainController implements Initializable {
     @FXML private Button heartButton;
     @FXML private StackPane detailImageArea;
     @FXML private ImageView detailImageView;
-    @FXML private javafx.scene.canvas.Canvas annotationCanvas;
-    @FXML private javafx.scene.control.TextField annotationTextField;
-    @FXML private javafx.scene.control.Slider fontSizeSlider;
-    @FXML private Label fontSizeLabel;
-    @FXML private javafx.scene.control.ColorPicker fontColorPicker;
-    @FXML private Label annotationFeedbackLabel;
     @FXML private Button importBtn;
 
-    private Image originalImage;
-    private String userText = "";
-    private double textX = -1;
-    private double textY = -1;
-    private boolean isDraggingText = false;
+    // Annotation side panel
+    @FXML private VBox annotationPanel;
+    @FXML private Label panelFilename;
+    @FXML private VBox existingAnnotationBox;
+    @FXML private Label existingAnnotationText;
+    @FXML private Label existingAnnotationDate;
+    @FXML private VBox addNoteBox;
+    @FXML private Label addNoteLabel;
+    @FXML private TextArea annotationTextArea;
+    @FXML private Label annotationFeedbackLabel;
+    @FXML private Button annotationSaveBtn;
+
     private String previousFilter = "ALL";
 
     // ── State ─────────────────────────────────────────────────────────────────
@@ -117,16 +118,16 @@ public class MainController implements Initializable {
     private static final String[] IMAGE_EXTS =
             { ".jpg", ".jpeg", ".png", ".bmp", ".gif", ".webp", ".tiff", ".tif", ".heic" };
 
-    private final List<String>     allPaths         = new ArrayList<>();
-    private final List<String>     displayPaths     = new ArrayList<>();
-    private final Set<String>      favourites       = new HashSet<>();
-    private final Set<Integer>     selectedIndices  = new HashSet<>();
+    private final List<String>     allPaths          = new ArrayList<>();
+    private final List<String>     displayPaths      = new ArrayList<>();
+    private final Set<String>      favourites        = new HashSet<>();
+    private final Set<Integer>     selectedIndices   = new HashSet<>();
     private final List<Rectangle>  selectionOverlays = new ArrayList<>();
 
     /** Currently selected index into displayPaths (-1 = none). */
     private int selectedIndex = -1;
 
-    /** Absolute path of the image shown in the detail view (null when in library view). */
+    /** Absolute path of the image shown in the detail/panel view (null when none). */
     private String currentPath;
 
     /** Which nav filter is active: ALL | FAVOURITES | ANNOTATED */
@@ -155,26 +156,9 @@ public class MainController implements Initializable {
     @FXML private HBox            navShare;
 
     // cached BorderPane root - stored once scene is available
-    // Safe to use anytime unlike libraryView.getScene() which returns
-    // null when libraryView is swapped out of the BorderPane center
     private BorderPane mainRoot;
     // CW: change end
-    private void setupAnnotationDrag() {
-        annotationCanvas.setOnMousePressed(e -> {
-            if (userText == null || userText.isBlank()) return;
-            double dist = Math.hypot(e.getX() - textX, e.getY() - textY);
-            if (dist < 80) isDraggingText = true;
-        });
 
-        annotationCanvas.setOnMouseDragged(e -> {
-            if (!isDraggingText) return;
-            textX = e.getX();
-            textY = e.getY();
-            redrawCanvas();
-        });
-
-        annotationCanvas.setOnMouseReleased(e -> isDraggingText = false);
-    }
     // ── Initialise ────────────────────────────────────────────────────────────
 
     @Override
@@ -186,22 +170,6 @@ public class MainController implements Initializable {
             thumbSize = Math.max(100, (available - 4 * 8) / 5);
             photoGrid.setPrefTileWidth(thumbSize);
         });
-
-        // One-time layout listener to size the canvas
-        detailImageArea.layoutBoundsProperty().addListener(
-            new javafx.beans.value.ChangeListener<javafx.geometry.Bounds>() {
-                @Override
-                public void changed(
-                        javafx.beans.value.ObservableValue<? extends javafx.geometry.Bounds> boundsObs,
-                        javafx.geometry.Bounds oldBounds,
-                        javafx.geometry.Bounds newBounds) {
-                    if (newBounds.getWidth() > 0 && newBounds.getHeight() > 0) {
-                        annotationCanvas.setWidth(newBounds.getWidth());
-                        annotationCanvas.setHeight(newBounds.getHeight());
-                        boundsObs.removeListener(this);
-                    }
-                }
-            });
 
         // Bind detail ImageView size to its container
         detailImageView.fitWidthProperty().bind(
@@ -224,29 +192,6 @@ public class MainController implements Initializable {
         mosaicViewController.setMainController(this);
         videoViewController.setMainController(this);
 
-        // Set default color picker value
-        fontColorPicker.setValue(javafx.scene.paint.Color.WHITE);
-
-        // Live font size label update
-        fontSizeSlider.valueProperty().addListener((sliderObs, sliderOld, sliderNew) -> {
-            fontSizeLabel.setText((int) sliderNew.doubleValue() + " pt");
-            if (userText != null && !userText.isBlank()) redrawCanvas();
-        });
-
-        // Live preview — text appears on image as you type
-        annotationTextField.textProperty().addListener((txtObs, txtOld, txtNew) -> {
-            userText = txtNew;
-            redrawCanvas();
-        });
-
-        // Live preview — color change updates image immediately
-        fontColorPicker.valueProperty().addListener((colorObs, colorOld, colorNew) -> {
-            if (userText != null && !userText.isBlank()) redrawCanvas();
-        });
-
-        // Setup drag on canvas
-        setupAnnotationDrag();
-
         // Import button context menu
         ContextMenu importMenu = new ContextMenu();
         MenuItem miFiles  = new MenuItem("Import files");
@@ -257,6 +202,7 @@ public class MainController implements Initializable {
         importBtn.setOnMouseClicked(e ->
                 importMenu.show(importBtn, javafx.geometry.Side.BOTTOM, 0, 0));
     }
+
     // ── Navigation ────────────────────────────────────────────────────────────
 
     @FXML
@@ -287,9 +233,6 @@ public class MainController implements Initializable {
         showLibraryView();
     }
 
-    // Stub handlers for STUDIO items — other modules will wire these
-    
-    
 // =========Chyntia: Edit begin
     // CW: loads images saved by Save to Library into the app Library page
     private void loadAppLibrary() {
@@ -317,10 +260,11 @@ public class MainController implements Initializable {
 
     // CW: new method - load DipEdit once, swap BorderPane center
     private void navigateToDipEdit(String tabName) {
+        hideAnnotationPanel();
         // CW: use cached mainRoot - never call libraryView.getScene()
         // here because libraryView may already be detached from the scene
         if (mainRoot == null) return;
- 
+
         try {
             if (dipEditRoot == null) {
                 FXMLLoader loader = new FXMLLoader(
@@ -330,11 +274,11 @@ public class MainController implements Initializable {
                 dipEditController = (DipEditController) loader.getController();
                 dipEditController.setMainController(this);
             }
- 
+
             String pathToPass = currentPath != null ? currentPath
                     : (selectedIndex >= 0 && selectedIndex < displayPaths.size()
                             ? displayPaths.get(selectedIndex) : null);
- 
+
             if (pathToPass != null)
                 dipEditController.setInitialImage(pathToPass);
 
@@ -361,11 +305,11 @@ public class MainController implements Initializable {
     }
     // CW: change end
 
-    
 // =========Chyntia: Edit end
 
     @FXML
     private void handleNavMosaic() {
+        hideAnnotationPanel();
         // If DipEdit replaced the center, restore the StackPane first
         if (mainRoot != null && dipEditRoot != null
                 && mainRoot.getCenter() == dipEditRoot) {
@@ -387,6 +331,7 @@ public class MainController implements Initializable {
 
     @FXML
     private void handleNavVideo() {
+        hideAnnotationPanel();
         // If DipEdit replaced the center, restore the StackPane first
         if (mainRoot != null && dipEditRoot != null
                 && mainRoot.getCenter() == dipEditRoot) {
@@ -405,8 +350,10 @@ public class MainController implements Initializable {
         videoViewController.setLibraryPaths(new ArrayList<>(allPaths));
         setNavActive(navVideo);
     }
+
     @FXML
     public void handleNavShare() {
+        hideAnnotationPanel();
         if (mainRoot != null && dipEditRoot != null
                 && mainRoot.getCenter() == dipEditRoot) {
             restoreLibraryCenter();
@@ -485,10 +432,6 @@ public class MainController implements Initializable {
         }
     }
 
-    
-
-
-
     private boolean isImageFile(String name) {
         String lower = name.toLowerCase();
         for (String ext : IMAGE_EXTS) {
@@ -501,7 +444,7 @@ public class MainController implements Initializable {
 
     @FXML
     private void handleFilter() {
-        if (filterAll.isSelected())        activeFilter = "ALL";
+        if (filterAll.isSelected())            activeFilter = "ALL";
         else if (filterAnnotated.isSelected()) activeFilter = "ANNOTATED";
         else if (filterFavorites.isSelected()) activeFilter = "FAVOURITES";
         else if (filterRecent.isSelected())    activeFilter = "RECENT";
@@ -516,8 +459,8 @@ public class MainController implements Initializable {
 
         for (String p : allPaths) {
             switch (activeFilter) {
-                case "FAVOURITES": if (favourites.contains(p))  displayPaths.add(p); break;
-                case "ANNOTATED":  if (MetadataStore.getInstance().hasAnnotation(p)) displayPaths.add(p); break;
+                case "FAVOURITES": if (favourites.contains(p))                         displayPaths.add(p); break;
+                case "ANNOTATED":  if (MetadataStore.getInstance().hasAnnotation(p))   displayPaths.add(p); break;
                 case "RECENT":     displayPaths.add(p); break; // TODO: sort by mtime
                 default:           displayPaths.add(p); break;
             }
@@ -614,7 +557,6 @@ public class MainController implements Initializable {
         iv.setPreserveRatio(false);
         iv.setSmooth(true);
         cell.getChildren().add(iv);
-        
 
         // Heart badge (shown when favourited)
         if (favourites.contains(path)) {
@@ -638,11 +580,13 @@ public class MainController implements Initializable {
         cell.getChildren().add(selectionOverlay);
         selectionOverlays.add(selectionOverlay);
 
-        // Click handlers
+        // Single-click: select + open annotation panel
+        // Double-click: open full detail view (panel also shown)
         cell.setOnMouseClicked(e -> {
             if (e.getButton() != MouseButton.PRIMARY) return;
             if (e.getClickCount() == 1) {
                 selectImage(index, e.isShiftDown());
+                openAnnotationPanel(index);
             } else if (e.getClickCount() == 2) {
                 openDetail(index);
             }
@@ -679,6 +623,25 @@ public class MainController implements Initializable {
             }
         });
 
+        String favLabel = favourites.contains(path) ? "Remove from Favorites" : "Add to Favorites";
+        MenuItem favItem = new MenuItem(favLabel);
+        favItem.setOnAction(e -> {
+            if (favourites.contains(path)) {
+                favourites.remove(path);
+            } else {
+                favourites.add(path);
+            }
+            updateCounts();
+            int pathIndex = displayPaths.indexOf(path);
+            if (pathIndex >= 0) updateThumbnailBadges(pathIndex);
+            if (path.equals(currentPath)) {
+                boolean nowFav = favourites.contains(path);
+                heartButton.setText(nowFav ? "♥" : "♡");
+                if (nowFav) heartButton.getStyleClass().add("active");
+                else heartButton.getStyleClass().remove("active");
+            }
+        });
+
         MenuItem deleteItem = new MenuItem("Remove from library");
         deleteItem.setStyle("-fx-text-fill: #B0432B;");
         deleteItem.setOnAction(e -> {
@@ -686,7 +649,8 @@ public class MainController implements Initializable {
             deleteSelectedImages();
         });
 
-        ctxMenu.getItems().addAll(exportItem, new SeparatorMenuItem(), deleteItem);
+        ctxMenu.getItems().addAll(favItem, new SeparatorMenuItem(),
+                exportItem, new SeparatorMenuItem(), deleteItem);
         cell.setOnContextMenuRequested(e ->
                 ctxMenu.show(cell, e.getScreenX(), e.getScreenY()));
 
@@ -726,44 +690,46 @@ public class MainController implements Initializable {
         StackPane.setMargin(badge, new Insets(0, 8, 8, 0));
         return badge;
     }
-   @FXML
-    private void handleSaveAndBack() {
-        if (currentPath == null) return;
 
-        userText = annotationTextField.getText();
+    private void updateThumbnailBadges(int index) {
+        // index is the position in displayPaths
+        // photoGrid children are VBox wrappers — one per displayPaths entry
+        // each VBox has: StackPane cell (index 0), Label nameLabel (index 1)
+        // the StackPane cell children are: ImageView, [badges...], selectionOverlay
+        // selectionOverlay is always the LAST child of the StackPane
+        if (index < 0 || index >= photoGrid.getChildren().size()) return;
 
-        try {
-            if (userText == null || userText.isBlank()) {
-                MetadataStore.getInstance().deleteAnnotation(currentPath);
-            } else {
-                String toSave = userText + "||" + textX + "||" + textY;
-                MetadataStore.getInstance().saveAnnotation(currentPath, toSave);
-            }
-            updateCounts();
-        } catch (Exception e) {
-            e.printStackTrace();
+        Node wrapperNode = photoGrid.getChildren().get(index);
+        if (!(wrapperNode instanceof VBox)) return;
+        VBox wrapper = (VBox) wrapperNode;
+
+        if (wrapper.getChildren().isEmpty()) return;
+        Node cellNode = wrapper.getChildren().get(0);
+        if (!(cellNode instanceof StackPane)) return;
+        StackPane cell = (StackPane) cellNode;
+
+        String path = displayPaths.get(index);
+
+        // Remove everything between ImageView (index 0) and selectionOverlay (last)
+        List<Node> toRemove = new ArrayList<>();
+        for (int i = 1; i < cell.getChildren().size() - 1; i++) {
+            toRemove.add(cell.getChildren().get(i));
+        }
+        cell.getChildren().removeAll(toRemove);
+
+        // Re-insert badges just before the selectionOverlay
+        int insertAt = cell.getChildren().size() - 1;
+
+        if (favourites.contains(path)) {
+            cell.getChildren().add(insertAt, buildHeartBadge());
+            insertAt++;
         }
 
-        // restore the filter we came from
-        activeFilter = previousFilter;
-        switch (previousFilter) {
-            case "ANNOTATED":
-                filterAnnotated.setSelected(true);
-                setNavActive(navAnnotated);
-                break;
-            case "FAVOURITES":
-                filterFavorites.setSelected(true);
-                setNavActive(navFavorites);
-                break;
-            default:
-                filterAll.setSelected(true);
-                setNavActive(navLibrary);
-                break;
+        if (MetadataStore.getInstance().hasAnnotation(path)) {
+            cell.getChildren().add(insertAt, buildAnnotationBadge());
         }
-
-        applyFilter();
-        Platform.runLater(() -> showLibraryView());
     }
+
     // ── Selection ─────────────────────────────────────────────────────────────
 
     private void selectImage(int index) {
@@ -781,7 +747,7 @@ public class MainController implements Initializable {
         } else {
             clearSelectionStyle();
             int start = Math.min(selectedIndex, index);
-            int end = Math.max(selectedIndex, index);
+            int end   = Math.max(selectedIndex, index);
             for (int i = start; i <= end; i++) {
                 selectedIndices.add(i);
                 setOverlaySelected(i, true);
@@ -808,7 +774,6 @@ public class MainController implements Initializable {
     }
 
     private void scrollToCell(int index) {
-        // Approximate scroll position based on row
         int cols = Math.max(1, (int) photoGrid.getPrefColumns());
         int row  = index / cols;
         int totalRows = (int) Math.ceil((double) displayPaths.size() / cols);
@@ -816,25 +781,24 @@ public class MainController implements Initializable {
             double vValue = (double) row / (totalRows - 1);
             gridScrollPane.setVvalue(vValue);
         }
-        
     }
 
     // ── Detail view ───────────────────────────────────────────────────────────
 
     private void openDetail(int index) {
         if (index < 0 || index >= displayPaths.size()) return;
-        previousFilter = activeFilter; // remember where we came from
-        selectedIndex = index;
-        currentPath = displayPaths.get(index);
+        previousFilter = activeFilter;
+        selectedIndex  = index;
+        currentPath    = displayPaths.get(index);
         loadDetailImage(currentPath);
-        loadAnnotationForImage(currentPath);
         showDetailView();
+        openAnnotationPanel(index);
     }
 
     private void loadDetailImage(String path) {
         File file = new File(path);
         detailFilename.setText(file.getName());
-        detailDimensions.setText(""); // updated once image loads
+        detailDimensions.setText("");
 
         String uri = file.toURI().toString();
         Image img = new Image(uri, 0, 0, true, true, true);
@@ -843,18 +807,13 @@ public class MainController implements Initializable {
             if (prog.doubleValue() >= 1.0 && !img.isError()) {
                 Platform.runLater(() -> {
                     detailImageView.setImage(img);
-                    originalImage = img;
                     int w = (int) img.getWidth();
                     int h = (int) img.getHeight();
                     detailDimensions.setText(String.format("%,d × %,d", w, h));
-                    annotationCanvas.setWidth(detailImageArea.getWidth());
-                    annotationCanvas.setHeight(detailImageArea.getHeight());
-                    redrawCanvas();
                 });
             }
         });
 
-        // Update heart button state
         boolean fav = favourites.contains(path);
         heartButton.setText(fav ? "♥" : "♡");
         if (fav) {
@@ -879,6 +838,7 @@ public class MainController implements Initializable {
 
     // CW: extended to restore BorderPane center when returning from DipEdit
     private void showLibraryView() {
+        hideAnnotationPanel();
         detailView.setVisible(false);
         detailView.setManaged(false);
         mosaicView.setVisible(false);
@@ -889,7 +849,7 @@ public class MainController implements Initializable {
         shareView.setManaged(false);
         libraryView.setVisible(true);
         libraryView.setManaged(true);
- 
+
         // CW: use mainRoot - safe even when libraryView is detached from scene
         if (mainRoot != null && dipEditRoot != null
                 && mainRoot.getCenter() == dipEditRoot) {
@@ -898,8 +858,6 @@ public class MainController implements Initializable {
         setNavActive(navLibrary);
     }
     // CW: change end
-    
-
 
     // ── Favourites toggle ─────────────────────────────────────────────────────
 
@@ -920,110 +878,120 @@ public class MainController implements Initializable {
             }
         }
         updateCounts();
-        // Refresh the thumbnail cell to show/hide the badge
-        refreshGrid();
-        if (selectedIndex >= 0 && selectedIndex < displayPaths.size()) {
-            selectImage(selectedIndex);
-        }
+        updateThumbnailBadges(selectedIndex);
     }
 
-    // ── Annotation ────────────────────────────────────────────────────────────
+    // ── Annotation side panel ─────────────────────────────────────────────────
+
+    private void openAnnotationPanel(int index) {
+        if (index < 0 || index >= displayPaths.size()) return;
+        currentPath  = displayPaths.get(index);
+        selectedIndex = index;
+        panelFilename.setText(Paths.get(currentPath).getFileName().toString());
+        loadAnnotationForImage(currentPath);
+        annotationPanel.setVisible(true);
+        annotationPanel.setManaged(true);
+    }
+
+    private void hideAnnotationPanel() {
+        annotationPanel.setVisible(false);
+        annotationPanel.setManaged(false);
+    }
 
     private void loadAnnotationForImage(String path) {
         String saved = MetadataStore.getInstance().getAnnotation(path);
-        if (saved != null && saved.contains("||")) {
-            // parse "text||x||y"
-            String[] parts = saved.split("\\|\\|");
-            userText = parts[0];
-            textX = parts.length > 1 ? Double.parseDouble(parts[1]) : -1;
-            textY = parts.length > 2 ? Double.parseDouble(parts[2]) : -1;
+        // Strip legacy "text||x||y" format written by the old canvas system
+        String text = (saved != null && saved.contains("||"))
+                ? saved.split("\\|\\|")[0]
+                : saved;
+
+        annotationTextArea.clear();
+        annotationFeedbackLabel.setText("");
+
+        if (text != null && !text.isBlank()) {
+            existingAnnotationText.setText(text);
+            existingAnnotationDate.setText("");
+            existingAnnotationBox.setVisible(true);
+            existingAnnotationBox.setManaged(true);
+            addNoteLabel.setText("Edit note");
+            annotationSaveBtn.setText("Save");
         } else {
-            userText = saved != null ? saved : "";
-            textX = -1;
-            textY = -1;
+            existingAnnotationBox.setVisible(false);
+            existingAnnotationBox.setManaged(false);
+            addNoteLabel.setText("Add a note");
+            annotationSaveBtn.setText("Add");
         }
-        annotationTextField.setText(userText);
     }
+
     @FXML
-    private void handleApplyAnnotation() {
+    private void handleCloseAnnotationPanel() {
+        hideAnnotationPanel();
+    }
+
+    @FXML
+    private void handleEditAnnotation() {
+        annotationTextArea.setText(existingAnnotationText.getText());
+        existingAnnotationBox.setVisible(false);
+        existingAnnotationBox.setManaged(false);
+        addNoteLabel.setText("Edit note");
+        annotationSaveBtn.setText("Save");
+        annotationTextArea.requestFocus();
+    }
+
+    @FXML
+    private void handleDeleteAnnotation() {
         if (currentPath == null) return;
-        userText = annotationTextField.getText();
-        if (userText == null || userText.isBlank()) return;
+        Alert confirm = new Alert(Alert.AlertType.CONFIRMATION);
+        confirm.setTitle("Delete note");
+        confirm.setHeaderText(null);
+        confirm.setContentText("Remove the note for this image?");
+        ButtonType deleteBtn = new ButtonType("Delete");
+        confirm.getButtonTypes().setAll(deleteBtn, ButtonType.CANCEL);
+        confirm.showAndWait().ifPresent(result -> {
+            if (result == deleteBtn) {
+                MetadataStore.getInstance().deleteAnnotation(currentPath);
+                loadAnnotationForImage(currentPath);
+                updateCounts();
+                updateThumbnailBadges(selectedIndex);
+            }
+        });
+    }
 
-        redrawCanvas();
-
+    @FXML
+    private void handleSaveAnnotation() {
+        if (currentPath == null) return;
+        String text = annotationTextArea.getText();
         try {
-            String toSave = userText + "||" + textX + "||" + textY;
-            MetadataStore.getInstance().saveAnnotation(currentPath, toSave);
-            annotationFeedbackLabel.setText("✓ Applied!");
-            annotationFeedbackLabel.setStyle(
-                "-fx-font-size: 12px; -fx-text-fill: #4A6741; -fx-font-style: italic;");
-            PauseTransition pause = new PauseTransition(Duration.seconds(2.5));
+            if (text == null || text.isBlank()) {
+                MetadataStore.getInstance().deleteAnnotation(currentPath);
+            } else {
+                MetadataStore.getInstance().saveAnnotation(currentPath, text.strip());
+            }
+            loadAnnotationForImage(currentPath);
+            updateCounts();
+            updateThumbnailBadges(selectedIndex);
+            annotationFeedbackLabel.setText("✓ Saved");
+            PauseTransition pause = new PauseTransition(Duration.seconds(2));
             pause.setOnFinished(e -> annotationFeedbackLabel.setText(""));
             pause.play();
-            updateCounts();
-            refreshGrid();
         } catch (Exception e) {
             annotationFeedbackLabel.setText("✗ Failed to save");
         }
     }
 
-    @FXML
-    private void handleClearText() {
-        if (currentPath == null) return;
-        userText = "";
-        textX = -1;
-        textY = -1;
-        annotationTextField.clear();
-        redrawCanvas();
-
-        try {
-            MetadataStore.getInstance().deleteAnnotation(currentPath);
-            annotationFeedbackLabel.setText("Annotation cleared.");
-            annotationFeedbackLabel.setStyle(
-                "-fx-font-size: 12px; -fx-text-fill: #9C907D; -fx-font-style: italic;");
-            PauseTransition pause = new PauseTransition(Duration.seconds(2.5));
-            pause.setOnFinished(e -> annotationFeedbackLabel.setText(""));
-            pause.play();
-            updateCounts();
-            refreshGrid();
-        } catch (Exception e) {
-            annotationFeedbackLabel.setText("✗ Failed to clear");
-        }
-    }
-    private void redrawCanvas() {
-        if (annotationCanvas == null) return;
-        if (annotationCanvas.getWidth() == 0 || annotationCanvas.getHeight() == 0) return;
-
-        javafx.scene.canvas.GraphicsContext gc = annotationCanvas.getGraphicsContext2D();
-        gc.clearRect(0, 0, annotationCanvas.getWidth(), annotationCanvas.getHeight());
-
-        if (originalImage != null) {
-            gc.drawImage(originalImage, 0, 0,
-                    annotationCanvas.getWidth(), annotationCanvas.getHeight());
-        }
-
-        if (userText != null && !userText.isBlank()) {
-            int fontSize = (int) fontSizeSlider.getValue();
-            javafx.scene.paint.Color color = fontColorPicker.getValue();
-
-            gc.setFont(javafx.scene.text.Font.font("Serif", fontSize));
-            gc.setFill(color);
-
-            // use saved drag position, or default bottom-center
-            if (textX < 0 || textY < 0) {
-                textX = (annotationCanvas.getWidth() / 2)
-                        - (userText.length() * fontSize * 0.3);
-                textY = annotationCanvas.getHeight() - 20;
-            }
-
-            gc.fillText(userText, textX, textY);
-        }
-    }
     // ── Stub handlers (wired by other modules) ────────────────────────────────
 
     @FXML private void handleNewMosaic() { /* Multimedia module */ }
-    @FXML private void handleAnnotate()  { annotationTextField.requestFocus(); }
+
+    @FXML
+    private void handleAnnotate() {
+        if (currentPath != null) {
+            loadAnnotationForImage(currentPath);
+            annotationPanel.setVisible(true);
+            annotationPanel.setManaged(true);
+        }
+    }
+
     @FXML
     private void handleShare() {
         handleNavShare();
@@ -1031,7 +999,8 @@ public class MainController implements Initializable {
             shareViewController.prefillAttachment(currentPath);
         }
     }
-    @FXML private void handleSearch()    { /* search logic */ }
+
+    @FXML private void handleSearch() { /* search logic */ }
 
     // ── Delete selected images ────────────────────────────────────────────────
 
@@ -1080,20 +1049,27 @@ public class MainController implements Initializable {
 
         if (inDetail) {
             switch (code) {
-                case LEFT:  navigateDetail(-1); break;
-                case RIGHT: navigateDetail(+1); break;
-                case ESCAPE: showLibraryView(); break;
+                case LEFT:   navigateDetail(-1); break;
+                case RIGHT:  navigateDetail(+1); break;
+                case ESCAPE: showLibraryView();  break;
                 default: break;
             }
         } else {
             int cols = Math.max(1, (int) photoGrid.getPrefColumns());
             switch (code) {
-                case LEFT:  navigateGrid(-1);    break;
-                case RIGHT: navigateGrid(+1);    break;
-                case UP:    navigateGrid(-cols);  break;
-                case DOWN:  navigateGrid(+cols);  break;
+                case LEFT:  navigateGrid(-1);   break;
+                case RIGHT: navigateGrid(+1);   break;
+                case UP:    navigateGrid(-cols); break;
+                case DOWN:  navigateGrid(+cols); break;
                 case ENTER: if (selectedIndex >= 0) openDetail(selectedIndex); break;
-                case ESCAPE: clearSelectionStyle(); selectedIndex = -1; break;
+                case ESCAPE:
+                    if (annotationPanel.isVisible()) {
+                        hideAnnotationPanel();
+                    } else {
+                        clearSelectionStyle();
+                        selectedIndex = -1;
+                    }
+                    break;
                 case DELETE:
                 case BACK_SPACE:
                     if (libraryView.isVisible() && !selectedIndices.isEmpty())
@@ -1117,9 +1093,9 @@ public class MainController implements Initializable {
         openDetail(next);
     }
 
-    // CW: 
+    // CW:
     // ── Application shutdown ──────────────────────────────────────────────────
- 
+
     /**
      * Call this from the primary stage's setOnCloseRequest handler.
      * Shuts down the DipEdit module's background threads and releases
