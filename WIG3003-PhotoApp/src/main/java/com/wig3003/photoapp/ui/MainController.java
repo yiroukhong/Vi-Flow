@@ -952,7 +952,7 @@ public class MainController implements Initializable {
             }
             loadAnnotationForImage(currentPath);
             updateCounts();
-            refreshGrid();
+            updateThumbnailBadges(selectedIndex);
             annotationFeedbackLabel.setText("✓ Saved");
             PauseTransition pause = new PauseTransition(Duration.seconds(2));
             pause.setOnFinished(e -> annotationFeedbackLabel.setText(""));
