@@ -41,8 +41,13 @@ public class MosaicGenerator {
             throw new IllegalArgumentException("tileSize must be >= 10");
         }
 
-        // 2. Load target image and validate it
-        Mat target = ImageUtils.loadMatFromPath(targetPath);
+        // 2. Load target image — normalise path for OpenCV on Windows
+        String normTarget = normalisePath(targetPath);
+        Mat target = ImageUtils.loadMatFromPath(normTarget);
+        if (target == null || target.empty()) {
+            // Fallback: try Imgcodecs directly with forward-slash path
+            target = Imgcodecs.imread(normTarget);
+        }
         if (target == null || target.empty()) {
             throw new IOException("Failed to load target image: " + targetPath);
         }
@@ -50,7 +55,7 @@ public class MosaicGenerator {
         // 3. Normalise target to BGR 3-channel
         target = normaliseToBGR(target);
 
-        // 4. Compute grid dimensions (floor division keeps ROIs within bounds)
+        // 4. Compute grid dimensions
         int cols = target.cols() / tileSize;
         int rows = target.rows() / tileSize;
 
@@ -64,7 +69,13 @@ public class MosaicGenerator {
         List<Mat> tiles = new ArrayList<>();
         for (String p : tilePaths) {
             if (p == null || p.isBlank()) continue;
-            Mat t = ImageUtils.loadMatFromPath(p);
+
+            String normP = normalisePath(p);
+            Mat t = ImageUtils.loadMatFromPath(normP);
+            if (t == null || t.empty()) {
+                // Fallback: try Imgcodecs directly
+                t = Imgcodecs.imread(normP);
+            }
             if (t == null || t.empty()) {
                 System.err.println("Warning: could not load tile image, skipping: " + p);
                 continue;
@@ -112,6 +123,14 @@ public class MosaicGenerator {
     // -------------------------------------------------------------------------
     // Private helpers
     // -------------------------------------------------------------------------
+
+    /**
+     * Normalises a file path for OpenCV on Windows.
+     * Replaces backslashes with forward slashes.
+     */
+    private String normalisePath(String path) {
+        return path.replace("\\", "/");
+    }
 
     /**
      * Finds the best matching tile using mean BGR Euclidean distance.
