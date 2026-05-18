@@ -1,0 +1,104 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<?import javafx.scene.layout.*?>
+<?import javafx.scene.control.*?>
+<?import javafx.scene.image.ImageView?>
+<?import javafx.geometry.Insets?>
+
+<BorderPane xmlns:fx="http://javafx.com/fxml"
+            fx:controller="com.wig3003.photoapp.dip.DipEditController"
+            style="-fx-background-color:#1a1612;">
+
+    <!-- TOP BAR -->
+    <top>
+        <HBox spacing="8" alignment="CENTER_LEFT"
+              style="-fx-padding:0 14 0 16;
+                     -fx-min-height:44; -fx-max-height:44;
+                     -fx-background-color:#161210;">
+            <Label text="Vi-Flow"
+                   style="-fx-font-size:13; -fx-font-weight:bold;
+                          -fx-text-fill:#f0e6d8;
+                          -fx-font-family:'Georgia',serif;"/>
+            <Label text="·"
+                   style="-fx-font-size:13; -fx-text-fill:rgba(240,230,216,0.28);"/>
+            <Label fx:id="titleLabel" text="Edit"
+                   style="-fx-font-size:11; -fx-text-fill:rgba(240,230,216,0.6);
+                          -fx-font-family:'Georgia',serif;"/>
+            <Region HBox.hgrow="ALWAYS"/>
+            <Label fx:id="statusLabel" text=""
+                   style="-fx-font-size:10; -fx-text-fill:rgba(240,230,216,0.4);
+                          -fx-font-family:'Consolas',monospace;"/>
+        </HBox>
+    </top>
+
+    <!-- CENTER: swapped by tab selection -->
+    <center>
+        <StackPane fx:id="contentPane"
+                   style="-fx-background-color:#1a1612;"/>
+    </center>
+
+    <!-- BOTTOM: pill tab bar -->
+    <bottom>
+        <HBox spacing="0" alignment="CENTER_LEFT"
+              style="-fx-padding:0 16;
+                     -fx-min-height:50; -fx-max-height:50;
+                     -fx-background-color:#161210;
+                     -fx-border-color:#2c2620;
+                     -fx-border-width:1 0 0 0;">
+
+            <HBox fx:id="tabBar" spacing="4" alignment="CENTER_LEFT">
+
+                <Button fx:id="tabRadiometric" text="Radiometric"
+                        onAction="#handleTabRadiometric"
+                        style="-fx-font-size:11;
+                               -fx-background-color:rgba(255,255,255,0.06);
+                               -fx-text-fill:rgba(240,230,216,0.55);
+                               -fx-padding:6 14; -fx-background-radius:20;
+                               -fx-border-color:rgba(255,255,255,0.08);
+                               -fx-border-radius:20; -fx-cursor:hand;"/>
+
+                <Button fx:id="tabAesthetic" text="Aesthetic"
+                        onAction="#handleTabAesthetic"
+                        style="-fx-font-size:11;
+                               -fx-background-color:rgba(255,255,255,0.06);
+                               -fx-text-fill:rgba(240,230,216,0.55);
+                               -fx-padding:6 14; -fx-background-radius:20;
+                               -fx-border-color:rgba(255,255,255,0.08);
+                               -fx-border-radius:20; -fx-cursor:hand;"/>
+
+                <Button fx:id="tabGeometric" text="Geometric"
+                        onAction="#handleTabGeometric"
+                        style="-fx-font-size:11;
+                               -fx-background-color:#c86442;
+                               -fx-text-fill:white;
+                               -fx-padding:6 14; -fx-background-radius:20;
+                               -fx-cursor:hand;"/>
+
+                <Button fx:id="tabExtraction" text="Extraction"
+                        onAction="#handleTabExtraction"
+                        style="-fx-font-size:11;
+                               -fx-background-color:rgba(255,255,255,0.06);
+                               -fx-text-fill:rgba(240,230,216,0.55);
+                               -fx-padding:6 14; -fx-background-radius:20;
+                               -fx-border-color:rgba(255,255,255,0.08);
+                               -fx-border-radius:20; -fx-cursor:hand;"/>
+
+                <Button fx:id="tabObject" text="Object"
+                        onAction="#handleTabObject"
+                        style="-fx-font-size:11;
+                               -fx-background-color:rgba(255,255,255,0.06);
+                               -fx-text-fill:rgba(240,230,216,0.55);
+                               -fx-padding:6 14; -fx-background-radius:20;
+                               -fx-border-color:rgba(255,255,255,0.08);
+                               -fx-border-radius:20; -fx-cursor:hand;"/>
+            </HBox>
+
+            <Region HBox.hgrow="ALWAYS"/>
+
+            <Label fx:id="zoomInfo" text=""
+                   style="-fx-font-size:10; -fx-text-fill:rgba(240,230,216,0.4);
+                          -fx-font-family:'Consolas',monospace;"/>
+        </HBox>
+    </bottom>
+
+</BorderPane>

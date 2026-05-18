@@ -76,24 +76,12 @@
 }
 
 .nav-active {
-    -fx-background-color: #1F1B16;
+    -fx-background-color: #FFFFFF;
     -fx-background-radius: 6;
 }
 
 .nav-active:hover {
-    -fx-background-color: #3D362C;
-}
-
-.nav-active .nav-label {
-    -fx-text-fill: white;
-}
-
-.nav-active .nav-icon-label {
-    -fx-text-fill: white;
-}
-
-.nav-active .nav-count {
-    -fx-text-fill: rgba(255, 255, 255, 0.55);
+    -fx-background-color: #FFFFFF;
 }
 
 .nav-icon-label {

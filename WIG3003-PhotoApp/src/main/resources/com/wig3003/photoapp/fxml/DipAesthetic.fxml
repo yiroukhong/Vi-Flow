@@ -1,0 +1,438 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<?import javafx.scene.layout.*?>
+<?import javafx.scene.control.*?>
+<?import javafx.scene.image.ImageView?>
+<?import javafx.scene.canvas.Canvas?>
+
+<VBox xmlns:fx="http://javafx.com/fxml"
+      fx:controller="com.wig3003.photoapp.dip.aesthetic.DipAestheticController"
+      spacing="0"
+      style="-fx-background-color:#1a1612;">
+
+    <!-- ═══════════════════════════════════════════════════════
+         TOP TOOLBAR
+    ═══════════════════════════════════════════════════════ -->
+    <HBox spacing="8"
+          alignment="CENTER_LEFT"
+          style="-fx-padding:0 14;
+                 -fx-min-height:46;
+                 -fx-max-height:46;
+                 -fx-background-color:#161210;
+                 -fx-border-color:#2c2620;
+                 -fx-border-width:0 0 1 0;">
+
+        <Button text="Load File"
+                onAction="#loadImage"
+                style="-fx-font-size:11;
+                       -fx-font-weight:bold;
+                       -fx-background-color:#c86442;
+                       -fx-text-fill:white;
+                       -fx-padding:6 16;
+                       -fx-background-radius:6;
+                       -fx-cursor:hand;"/>
+
+        <Button text="Load Library"
+                onAction="#loadFromLibrary"
+                style="-fx-font-size:11;
+                       -fx-font-weight:bold;
+                       -fx-background-color:#7a5c3a;
+                       -fx-text-fill:white;
+                       -fx-padding:6 14;
+                       -fx-background-radius:6;
+                       -fx-cursor:hand;"/>
+
+        <Separator orientation="VERTICAL"
+                   style="-fx-opacity:0.25;"/>
+
+        <Button text="Save to Library"
+                onAction="#saveToLibrary"
+                style="-fx-font-size:11;
+                       -fx-background-color:rgba(255,255,255,0.08);
+                       -fx-text-fill:rgba(240,230,216,0.8);
+                       -fx-padding:6 14;
+                       -fx-background-radius:6;
+                       -fx-cursor:hand;"/>
+
+        <Button text="Save to Device"
+                onAction="#saveResult"
+                style="-fx-font-size:11;
+                       -fx-background-color:rgba(255,255,255,0.08);
+                       -fx-text-fill:rgba(240,230,216,0.8);
+                       -fx-padding:6 14;
+                       -fx-background-radius:6;
+                       -fx-cursor:hand;"/>
+
+        <Button text="Save Both"
+                onAction="#saveBoth"
+                style="-fx-font-size:11;
+                       -fx-background-color:rgba(255,255,255,0.08);
+                       -fx-text-fill:rgba(240,230,216,0.8);
+                       -fx-padding:6 14;
+                       -fx-background-radius:6;
+                       -fx-cursor:hand;"/>
+
+        <Separator orientation="VERTICAL"
+                   style="-fx-opacity:0.25;"/>
+
+        <Button fx:id="undoBtn"
+                text="Undo"
+                onAction="#handleUndo"
+                style="-fx-font-size:11;
+                       -fx-background-color:rgba(255,255,255,0.06);
+                       -fx-text-fill:rgba(240,230,216,0.55);
+                       -fx-padding:6 14;
+                       -fx-background-radius:6;
+                       -fx-cursor:hand;"/>
+
+        <Button text="Reset"
+                onAction="#handleReset"
+                style="-fx-font-size:11;
+                       -fx-background-color:rgba(255,255,255,0.06);
+                       -fx-text-fill:rgba(240,230,216,0.55);
+                       -fx-padding:6 14;
+                       -fx-background-radius:6;
+                       -fx-cursor:hand;"/>
+
+        <Region HBox.hgrow="ALWAYS"/>
+
+        <Label text="Zoom"
+               style="-fx-font-size:10;
+                      -fx-text-fill:white;
+                      -fx-font-weight:bold;"/>
+
+        <ComboBox fx:id="zoomCombo"
+                  onAction="#handleZoomChange"
+                  prefWidth="116"
+                  style="-fx-font-size:11;
+                         -fx-background-color:#f0ebe4;
+                         -fx-text-fill:#1a1208;
+                         -fx-border-color:#c8b89a;
+                         -fx-border-radius:5;
+                         -fx-background-radius:5;"/>
+
+        <Separator orientation="VERTICAL"
+                   style="-fx-opacity:0.25;"/>
+
+        <Label fx:id="statusBar"
+               text="No image loaded."
+               style="-fx-font-size:10;
+                      -fx-text-fill:rgba(240,230,216,0.35);
+                      -fx-font-family:'Consolas',monospace;
+                      -fx-max-width:300;"/>
+    </HBox>
+
+    <!-- ═══════════════════════════════════════════════════════
+         MAIN BODY
+    ═══════════════════════════════════════════════════════ -->
+    <HBox VBox.vgrow="ALWAYS">
+
+        <!-- ── LEFT: IMAGE VIEWER ── -->
+        <StackPane HBox.hgrow="ALWAYS"
+                   style="-fx-background-color:#1a1a1a;">
+
+            <ScrollPane fx:id="resultScrollPane"
+                        pannable="true"
+                        fitToWidth="true"
+                        fitToHeight="true"
+                        hbarPolicy="AS_NEEDED"
+                        vbarPolicy="AS_NEEDED"
+                        style="-fx-background-color:#1a1a1a;
+                               -fx-background:#1a1a1a;
+                               -fx-border-color:transparent;
+                               -fx-focus-color:transparent;
+                               -fx-faint-focus-color:transparent;">
+
+                <StackPane fx:id="resultCheckerPane"
+                           style="-fx-background-color:transparent;">
+
+                    <Canvas fx:id="checkerCanvas"
+                            mouseTransparent="true"/>
+
+                    <ImageView fx:id="resultView"
+                               preserveRatio="true"
+                               smooth="true"
+                               pickOnBounds="false"/>
+
+                    <Label fx:id="resultLabel"
+                           text="Load an image to begin"
+                           StackPane.alignment="CENTER"
+                           style="-fx-font-size:13;
+                                  -fx-text-fill:rgba(255,255,255,0.25);
+                                  -fx-font-family:'Georgia',serif;"/>
+                </StackPane>
+            </ScrollPane>
+        </StackPane>
+
+        <!-- ── RIGHT: CONTROL PANEL ── -->
+        <VBox prefWidth="282"
+              minWidth="260"
+              maxWidth="300"
+              style="-fx-background-color:#faf6f1;
+                     -fx-border-color:#e8dfd4;
+                     -fx-border-width:0 0 0 1;">
+
+            <ScrollPane fitToWidth="true"
+                        VBox.vgrow="ALWAYS"
+                        style="-fx-background-color:#faf6f1;
+                               -fx-border-color:transparent;
+                               -fx-focus-color:transparent;
+                               -fx-faint-focus-color:transparent;">
+
+                <VBox spacing="0">
+
+                    <!-- ══════════════════════════════════════════
+                         SECTION 1 — Header
+                    ══════════════════════════════════════════ -->
+                    <VBox style="-fx-padding:16;
+                                 -fx-border-color:#e8dfd4;
+                                 -fx-border-width:0 0 1 0;">
+
+                        <Label text="Aesthetic"
+                               style="-fx-font-size:12;
+                                      -fx-font-weight:bold;
+                                      -fx-text-fill:#1f1b16;
+                                      -fx-font-family:'Georgia',serif;
+                                      -fx-padding:0 0 10 0;"/>
+                    </VBox>
+
+                    <!-- ══════════════════════════════════════════
+                         SECTION 2 — Border type
+                    ══════════════════════════════════════════ -->
+                    <VBox style="-fx-padding:16;
+                                 -fx-border-color:#e8dfd4;
+                                 -fx-border-width:0 0 1 0;">
+
+                        <Label text="Border"
+                               style="-fx-font-size:10;
+                                      -fx-font-weight:bold;
+                                      -fx-padding:0 0 8 0;"/>
+
+                        <HBox spacing="6"
+                              style="-fx-padding:0;">
+
+                            <fx:define>
+                                <ToggleGroup fx:id="borderGroup"/>
+                            </fx:define>
+
+                            <ToggleButton fx:id="borderNone"
+                                          text="None"
+                                          toggleGroup="$borderGroup"
+                                          selected="true"
+                                          onAction="#handleBorderTypeChange"
+                                          style="-fx-font-size:10;
+                                                 -fx-background-color:#1f1b16;
+                                                 -fx-text-fill:white;
+                                                 -fx-border-radius:999;
+                                                 -fx-background-radius:999;
+                                                 -fx-padding:4 10;
+                                                 -fx-cursor:hand;"/>
+
+                            <ToggleButton fx:id="borderConstant"
+                                          text="Constant"
+                                          toggleGroup="$borderGroup"
+                                          onAction="#handleBorderTypeChange"
+                                          style="-fx-font-size:10;
+                                                 -fx-background-color:transparent;
+                                                 -fx-text-fill:#3d362c;
+                                                 -fx-border-color:#ddd2bc;
+                                                 -fx-border-radius:999;
+                                                 -fx-background-radius:999;
+                                                 -fx-padding:4 10;
+                                                 -fx-cursor:hand;"/>
+
+                            <ToggleButton fx:id="borderReflect"
+                                          text="Reflect"
+                                          toggleGroup="$borderGroup"
+                                          onAction="#handleBorderTypeChange"
+                                          style="-fx-font-size:10;
+                                                 -fx-background-color:transparent;
+                                                 -fx-text-fill:#3d362c;
+                                                 -fx-border-color:#ddd2bc;
+                                                 -fx-border-radius:999;
+                                                 -fx-background-radius:999;
+                                                 -fx-padding:4 10;
+                                                 -fx-cursor:hand;"/>
+
+                            <ToggleButton fx:id="borderReplicate"
+                                          text="Replicate"
+                                          toggleGroup="$borderGroup"
+                                          onAction="#handleBorderTypeChange"
+                                          style="-fx-font-size:10;
+                                                 -fx-background-color:transparent;
+                                                 -fx-text-fill:#3d362c;
+                                                 -fx-border-color:#ddd2bc;
+                                                 -fx-border-radius:999;
+                                                 -fx-background-radius:999;
+                                                 -fx-padding:4 10;
+                                                 -fx-cursor:hand;"/>
+                        </HBox>
+                    </VBox>
+
+                    <!-- ══════════════════════════════════════════
+                         SECTION 3 — Border width
+                    ══════════════════════════════════════════ -->
+                    <VBox style="-fx-padding:16;
+                                 -fx-border-color:#e8dfd4;
+                                 -fx-border-width:0 0 1 0;">
+
+                        <Label text="Border width"
+                               style="-fx-font-size:10;
+                                      -fx-font-weight:bold;
+                                      -fx-padding:0 0 8 0;"/>
+
+                        <HBox spacing="8" alignment="CENTER_LEFT">
+
+                            <Slider fx:id="borderWidthSlider"
+                                    min="0" max="80" value="14"
+                                    HBox.hgrow="ALWAYS"
+                                    showTickMarks="true"
+                                    showTickLabels="true"
+                                    majorTickUnit="20"
+                                    blockIncrement="1"/>
+
+                            <Label fx:id="borderWidthLabel"
+                                   text="14 px"
+                                   style="-fx-font-size:11;
+                                          -fx-font-weight:bold;
+                                          -fx-text-fill:#c86442;
+                                          -fx-min-width:48;"/>
+                        </HBox>
+                    </VBox>
+
+                    <!-- ══════════════════════════════════════════
+                         SECTION 4 — Border color (CONSTANT only)
+                    ══════════════════════════════════════════ -->
+                    <VBox fx:id="colorPickerSection"
+                          visible="false"
+                          managed="false"
+                          style="-fx-padding:16;
+                                 -fx-border-color:#e8dfd4;
+                                 -fx-border-width:0 0 1 0;">
+
+                        <Label text="Border color"
+                               style="-fx-font-size:10;
+                                      -fx-font-weight:bold;
+                                      -fx-padding:0 0 8 0;"/>
+
+                        <HBox spacing="8" alignment="CENTER_LEFT">
+
+                            <!-- White swatch — selected by default -->
+                            <Button onAction="#handleColorSwatch"
+                                    userData="#FFFFFF"
+                                    prefWidth="28" prefHeight="28"
+                                    style="-fx-background-color:#FFFFFF;
+                                           -fx-background-radius:999;
+                                           -fx-border-color:#1f1b16;
+                                           -fx-border-width:2;
+                                           -fx-border-radius:999;
+                                           -fx-cursor:hand;
+                                           -fx-min-width:28;
+                                           -fx-min-height:28;
+                                           -fx-max-width:28;
+                                           -fx-max-height:28;"/>
+
+                            <!-- Black swatch -->
+                            <Button onAction="#handleColorSwatch"
+                                    userData="#1F1B16"
+                                    prefWidth="28" prefHeight="28"
+                                    style="-fx-background-color:#1F1B16;
+                                           -fx-background-radius:999;
+                                           -fx-border-color:#ddd2bc;
+                                           -fx-border-width:1;
+                                           -fx-border-radius:999;
+                                           -fx-cursor:hand;
+                                           -fx-min-width:28;
+                                           -fx-min-height:28;
+                                           -fx-max-width:28;
+                                           -fx-max-height:28;"/>
+
+                            <!-- Red swatch -->
+                            <Button onAction="#handleColorSwatch"
+                                    userData="#B0432B"
+                                    prefWidth="28" prefHeight="28"
+                                    style="-fx-background-color:#B0432B;
+                                           -fx-background-radius:999;
+                                           -fx-border-color:#ddd2bc;
+                                           -fx-border-width:1;
+                                           -fx-border-radius:999;
+                                           -fx-cursor:hand;
+                                           -fx-min-width:28;
+                                           -fx-min-height:28;
+                                           -fx-max-width:28;
+                                           -fx-max-height:28;"/>
+
+                            <!-- Green swatch -->
+                            <Button onAction="#handleColorSwatch"
+                                    userData="#4A6741"
+                                    prefWidth="28" prefHeight="28"
+                                    style="-fx-background-color:#4A6741;
+                                           -fx-background-radius:999;
+                                           -fx-border-color:#ddd2bc;
+                                           -fx-border-width:1;
+                                           -fx-border-radius:999;
+                                           -fx-cursor:hand;
+                                           -fx-min-width:28;
+                                           -fx-min-height:28;
+                                           -fx-max-width:28;
+                                           -fx-max-height:28;"/>
+
+                            <!-- Gold swatch -->
+                            <Button onAction="#handleColorSwatch"
+                                    userData="#C8A93F"
+                                    prefWidth="28" prefHeight="28"
+                                    style="-fx-background-color:#C8A93F;
+                                           -fx-background-radius:999;
+                                           -fx-border-color:#ddd2bc;
+                                           -fx-border-width:1;
+                                           -fx-border-radius:999;
+                                           -fx-cursor:hand;
+                                           -fx-min-width:28;
+                                           -fx-min-height:28;
+                                           -fx-max-width:28;
+                                           -fx-max-height:28;"/>
+                        </HBox>
+                    </VBox>
+
+                    <!-- ══════════════════════════════════════════
+                         SECTION 5 — Bottom action row
+                    ══════════════════════════════════════════ -->
+                    <HBox spacing="6"
+                          style="-fx-padding:14 16 16 16;">
+
+                        <Button text="Undo"
+                                onAction="#handleUndo"
+                                maxWidth="Infinity"
+                                HBox.hgrow="ALWAYS"
+                                prefHeight="32"
+                                style="-fx-font-size:11;
+                                       -fx-background-color:#ede6dc;
+                                       -fx-text-fill:#4a3a28;
+                                       -fx-background-radius:6;
+                                       -fx-cursor:hand;"/>
+
+                        <Button text="Reset all"
+                                onAction="#handleReset"
+                                maxWidth="Infinity"
+                                HBox.hgrow="ALWAYS"
+                                prefHeight="32"
+                                style="-fx-font-size:11;
+                                       -fx-background-color:#ede6dc;
+                                       -fx-text-fill:#4a3a28;
+                                       -fx-background-radius:6;
+                                       -fx-cursor:hand;"/>
+                    </HBox>
+
+                    <Label fx:id="imageInfoLabel"
+                           text=""
+                           wrapText="true"
+                           style="-fx-font-size:10;
+                                  -fx-text-fill:#9a8a78;
+                                  -fx-font-family:'Consolas',monospace;
+                                  -fx-padding:0 16 12 16;"/>
+
+                </VBox>
+            </ScrollPane>
+        </VBox>
+    </HBox>
+</VBox>

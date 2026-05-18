@@ -12,9 +12,11 @@ import java.util.Set;
 import com.wig3003.photoapp.model.MetadataStore;
 import com.wig3003.photoapp.util.ImageUtils;
 
+import javafx.animation.PauseTransition;
 import javafx.application.Platform;
 import javafx.fxml.FXML;
 import javafx.fxml.Initializable;
+import javafx.util.Duration;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
 import javafx.scene.Node;
@@ -28,6 +30,7 @@ import javafx.scene.image.Image;
 import javafx.scene.image.ImageView;
 import javafx.scene.input.KeyCode;
 import javafx.scene.input.MouseButton;
+import javafx.scene.layout.BorderPane;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.StackPane;
 import javafx.scene.layout.TilePane;
@@ -36,6 +39,17 @@ import javafx.scene.paint.Color;
 import javafx.scene.shape.Rectangle;
 import javafx.scene.shape.StrokeType;
 import javafx.stage.DirectoryChooser;
+
+// CW: added imports for DipEdit navigation
+import com.wig3003.photoapp.dip.DipEditController;
+import javafx.fxml.FXMLLoader;
+import javafx.scene.Parent;
+// CW: change end
+
+import com.wig3003.photoapp.social.ShareController;
+import com.wig3003.photoapp.synthesis.MosaicController;
+import com.wig3003.photoapp.synthesis.VideoController;
+
 
 public class MainController implements Initializable {
 
@@ -68,7 +82,19 @@ public class MainController implements Initializable {
     @FXML private Button heartButton;
     @FXML private StackPane detailImageArea;
     @FXML private ImageView detailImageView;
-    @FXML private TextArea annotationField;
+    @FXML private javafx.scene.canvas.Canvas annotationCanvas;
+    @FXML private javafx.scene.control.TextField annotationTextField;
+    @FXML private javafx.scene.control.Slider fontSizeSlider;
+    @FXML private Label fontSizeLabel;
+    @FXML private javafx.scene.control.ColorPicker fontColorPicker;
+    @FXML private Label annotationFeedbackLabel;
+
+    private Image originalImage;
+    private String userText = "";
+    private double textX = -1;
+    private double textY = -1;
+    private boolean isDraggingText = false;
+    private String previousFilter = "ALL";
 
     // ── State ─────────────────────────────────────────────────────────────────
 
@@ -93,17 +119,74 @@ public class MainController implements Initializable {
     /** Pixel size of each thumbnail tile (square). Recalculated on resize. */
     private double thumbSize = 185;
 
+    // CW: cached DipEdit module - load once, reuse on tab switch
+    private Parent            dipEditRoot;
+    private DipEditController dipEditController;
+
+    // Mosaic view — injected via fx:include in main.fxml
+    @FXML private Parent           mosaicView;
+    @FXML private MosaicController mosaicViewController;
+    @FXML private HBox             navMosaic;
+
+    // Video view — injected via fx:include in main.fxml
+    @FXML private Parent          videoView;
+    @FXML private VideoController videoViewController;
+    @FXML private HBox            navVideo;
+
+    // Share view — injected via fx:include in main.fxml
+    @FXML private Parent          shareView;
+    @FXML private ShareController shareViewController;
+    @FXML private HBox            navShare;
+
+    // cached BorderPane root - stored once scene is available
+    // Safe to use anytime unlike libraryView.getScene() which returns
+    // null when libraryView is swapped out of the BorderPane center
+    private BorderPane mainRoot;
+    // CW: change end
+    private void setupAnnotationDrag() {
+        annotationCanvas.setOnMousePressed(e -> {
+            if (userText == null || userText.isBlank()) return;
+            double dist = Math.hypot(e.getX() - textX, e.getY() - textY);
+            if (dist < 80) isDraggingText = true;
+        });
+
+        annotationCanvas.setOnMouseDragged(e -> {
+            if (!isDraggingText) return;
+            textX = e.getX();
+            textY = e.getY();
+            redrawCanvas();
+        });
+
+        annotationCanvas.setOnMouseReleased(e -> isDraggingText = false);
+    }
     // ── Initialise ────────────────────────────────────────────────────────────
 
     @Override
     public void initialize(URL location, ResourceBundle resources) {
-        // Bind tile width to the scroll pane's width so tiles stay 5-per-row
-        gridScrollPane.widthProperty().addListener((obs, old, w) -> {
-            double available = w.doubleValue() - 32; // 16px padding each side
-            thumbSize = Math.max(100, (available - 4 * 8) / 5); // 4 gaps of 8px
+
+        // Bind tile width to scroll pane width so tiles stay 5-per-row
+        gridScrollPane.widthProperty().addListener((gridObs, gridOld, gridW) -> {
+            double available = gridW.doubleValue() - 32;
+            thumbSize = Math.max(100, (available - 4 * 8) / 5);
             photoGrid.setPrefTileWidth(thumbSize);
             photoGrid.setPrefTileHeight(thumbSize);
         });
+
+        // One-time layout listener to size the canvas
+        detailImageArea.layoutBoundsProperty().addListener(
+            new javafx.beans.value.ChangeListener<javafx.geometry.Bounds>() {
+                @Override
+                public void changed(
+                        javafx.beans.value.ObservableValue<? extends javafx.geometry.Bounds> boundsObs,
+                        javafx.geometry.Bounds oldBounds,
+                        javafx.geometry.Bounds newBounds) {
+                    if (newBounds.getWidth() > 0 && newBounds.getHeight() > 0) {
+                        annotationCanvas.setWidth(newBounds.getWidth());
+                        annotationCanvas.setHeight(newBounds.getHeight());
+                        boundsObs.removeListener(this);
+                    }
+                }
+            });
 
         // Bind detail ImageView size to its container
         detailImageView.fitWidthProperty().bind(
@@ -111,21 +194,50 @@ public class MainController implements Initializable {
         detailImageView.fitHeightProperty().bind(
                 detailImageArea.heightProperty().subtract(48));
 
-        // Scene-level keyboard handler (attached once scene is available)
-        libraryView.sceneProperty().addListener((obs, old, scene) -> {
-            if (scene != null) {
-                scene.setOnKeyPressed(e -> handleKeyPress(e.getCode()));
+        // Cache the BorderPane root once the scene is attached
+        libraryView.sceneProperty().addListener((sceneObs, oldScene, newScene) -> {
+            if (newScene != null && mainRoot == null) {
+                mainRoot = (BorderPane) newScene.getRoot();
             }
         });
-    }
 
+        // Load saved library images on startup
+        loadAppLibrary();
+
+        shareViewController.setMainController(this);
+
+        // Set default color picker value
+        fontColorPicker.setValue(javafx.scene.paint.Color.WHITE);
+
+        // Live font size label update
+        fontSizeSlider.valueProperty().addListener((sliderObs, sliderOld, sliderNew) -> {
+            fontSizeLabel.setText((int) sliderNew.doubleValue() + " pt");
+            if (userText != null && !userText.isBlank()) redrawCanvas();
+        });
+
+        // Live preview — text appears on image as you type
+        annotationTextField.textProperty().addListener((txtObs, txtOld, txtNew) -> {
+            userText = txtNew;
+            redrawCanvas();
+        });
+
+        // Live preview — color change updates image immediately
+        fontColorPicker.valueProperty().addListener((colorObs, colorOld, colorNew) -> {
+            if (userText != null && !userText.isBlank()) redrawCanvas();
+        });
+
+        // Setup drag on canvas
+        setupAnnotationDrag();
+    }
     // ── Navigation ────────────────────────────────────────────────────────────
 
     @FXML
     private void handleNavLibrary() {
         setNavActive(navLibrary);
         activeFilter = "ALL";
-        applyFilter();
+        // CW: refresh app library images saved by Geometric / Extraction
+        loadAppLibrary();
+        // CW: change end
         showLibraryView();
     }
 
@@ -148,13 +260,141 @@ public class MainController implements Initializable {
     }
 
     // Stub handlers for STUDIO items — other modules will wire these
-    @FXML private void handleNavEdit()   { /* wired by DIP module */ }
-    @FXML private void handleNavMosaic() { /* wired by Multimedia module */ }
-    @FXML private void handleNavVideo()  { /* wired by Multimedia module */ }
-    @FXML private void handleNavShare()  { /* wired by Social module */ }
+    
+    
+// =========Chyntia: Edit begin
+    // CW: loads images saved by Save to Library into the app Library page
+    private void loadAppLibrary() {
+        allPaths.clear();
+        selectedIndex = -1;
+        selectedIndices.clear();
+        selectedCountLabel.setText("");
+
+        allPaths.addAll(MetadataStore.getInstance().getLibraryPaths());
+
+        applyFilter();
+        updateCounts();
+    }
+    // CW: change end
+
+    @FXML
+    private void handleNavEdit() {
+        navigateToDipEdit("Geometric");
+    }
+
+    @FXML
+    private void handleNavExtract() {
+        navigateToDipEdit("Extraction");
+    }
+
+    // CW: new method - load DipEdit once, swap BorderPane center
+    private void navigateToDipEdit(String tabName) {
+        // CW: use cached mainRoot - never call libraryView.getScene()
+        // here because libraryView may already be detached from the scene
+        if (mainRoot == null) return;
+ 
+        try {
+            if (dipEditRoot == null) {
+                FXMLLoader loader = new FXMLLoader(
+                        getClass().getResource(
+                                "/com/wig3003/photoapp/fxml/DipEdit.fxml"));
+                dipEditRoot       = loader.load();
+                dipEditController = (DipEditController) loader.getController();
+            }
+ 
+            String pathToPass = currentPath != null ? currentPath
+                    : (selectedIndex >= 0 && selectedIndex < displayPaths.size()
+                            ? displayPaths.get(selectedIndex) : null);
+ 
+            if (pathToPass != null)
+                dipEditController.setInitialImage(pathToPass);
+ 
+            dipEditController.selectTab(tabName);
+            mainRoot.setCenter(dipEditRoot);
+ 
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+    }
+    // CW: change end
+
+    // CW: new method - restore library StackPane back into BorderPane center
+    private void restoreLibraryCenter() {
+        if (mainRoot == null) return;
+        javafx.scene.Parent parent = libraryView.getParent();
+        if (parent instanceof StackPane) {
+            mainRoot.setCenter((StackPane) parent);
+        } else {
+            mainRoot.setCenter(parent != null ? parent : libraryView);
+        }
+    }
+    // CW: change end
+
+    
+// =========Chyntia: Edit end
+
+    @FXML
+    private void handleNavMosaic() {
+        // If DipEdit replaced the center, restore the StackPane first
+        if (mainRoot != null && dipEditRoot != null
+                && mainRoot.getCenter() == dipEditRoot) {
+            restoreLibraryCenter();
+        }
+        libraryView.setVisible(false);
+        libraryView.setManaged(false);
+        detailView.setVisible(false);
+        detailView.setManaged(false);
+        videoView.setVisible(false);
+        videoView.setManaged(false);
+        shareView.setVisible(false);
+        shareView.setManaged(false);
+        mosaicView.setVisible(true);
+        mosaicView.setManaged(true);
+        mosaicViewController.setLibraryPaths(new ArrayList<>(allPaths));
+        setNavActive(navMosaic);
+    }
+
+    @FXML
+    private void handleNavVideo() {
+        // If DipEdit replaced the center, restore the StackPane first
+        if (mainRoot != null && dipEditRoot != null
+                && mainRoot.getCenter() == dipEditRoot) {
+            restoreLibraryCenter();
+        }
+        libraryView.setVisible(false);
+        libraryView.setManaged(false);
+        detailView.setVisible(false);
+        detailView.setManaged(false);
+        mosaicView.setVisible(false);
+        mosaicView.setManaged(false);
+        shareView.setVisible(false);
+        shareView.setManaged(false);
+        videoView.setVisible(true);
+        videoView.setManaged(true);
+        videoViewController.setLibraryPaths(new ArrayList<>(allPaths));
+        setNavActive(navVideo);
+    }
+    @FXML
+    public void handleNavShare() {
+        if (mainRoot != null && dipEditRoot != null
+                && mainRoot.getCenter() == dipEditRoot) {
+            restoreLibraryCenter();
+        }
+        libraryView.setVisible(false);
+        libraryView.setManaged(false);
+        detailView.setVisible(false);
+        detailView.setManaged(false);
+        mosaicView.setVisible(false);
+        mosaicView.setManaged(false);
+        videoView.setVisible(false);
+        videoView.setManaged(false);
+        shareView.setVisible(true);
+        shareView.setManaged(true);
+        setNavActive(navShare);
+    }
 
     private void setNavActive(HBox active) {
-        for (HBox item : List.of(navLibrary, navFavorites, navAnnotated)) {
+        for (HBox item : List.of(navLibrary, navFavorites, navAnnotated, navMosaic, navVideo, navShare)) {
             item.getStyleClass().remove("nav-active");
         }
         active.getStyleClass().add("nav-active");
@@ -195,9 +435,18 @@ public class MainController implements Initializable {
             }
         }
 
+        // CW: remember imported folder images as app library images
+        MetadataStore.getInstance().saveLibraryImagePaths(allPaths);
+        // CW: change end
+
+
         applyFilter();
         updateCounts();
     }
+
+    
+
+
 
     private boolean isImageFile(String name) {
         String lower = name.toLowerCase();
@@ -356,7 +605,44 @@ public class MainController implements Initializable {
         StackPane.setMargin(badge, new Insets(0, 8, 8, 0));
         return badge;
     }
+   @FXML
+    private void handleSaveAndBack() {
+        if (currentPath == null) return;
 
+        userText = annotationTextField.getText();
+
+        try {
+            if (userText == null || userText.isBlank()) {
+                MetadataStore.getInstance().deleteAnnotation(currentPath);
+            } else {
+                String toSave = userText + "||" + textX + "||" + textY;
+                MetadataStore.getInstance().saveAnnotation(currentPath, toSave);
+            }
+            updateCounts();
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+
+        // restore the filter we came from
+        activeFilter = previousFilter;
+        switch (previousFilter) {
+            case "ANNOTATED":
+                filterAnnotated.setSelected(true);
+                setNavActive(navAnnotated);
+                break;
+            case "FAVOURITES":
+                filterFavorites.setSelected(true);
+                setNavActive(navFavorites);
+                break;
+            default:
+                filterAll.setSelected(true);
+                setNavActive(navLibrary);
+                break;
+        }
+
+        applyFilter();
+        Platform.runLater(() -> showLibraryView());
+    }
     // ── Selection ─────────────────────────────────────────────────────────────
 
     private void selectImage(int index) {
@@ -416,6 +702,7 @@ public class MainController implements Initializable {
 
     private void openDetail(int index) {
         if (index < 0 || index >= displayPaths.size()) return;
+        previousFilter = activeFilter; // remember where we came from
         selectedIndex = index;
         currentPath = displayPaths.get(index);
         loadDetailImage(currentPath);
@@ -435,10 +722,13 @@ public class MainController implements Initializable {
             if (prog.doubleValue() >= 1.0 && !img.isError()) {
                 Platform.runLater(() -> {
                     detailImageView.setImage(img);
+                    originalImage = img;
                     int w = (int) img.getWidth();
                     int h = (int) img.getHeight();
-                    detailDimensions.setText(
-                            String.format("%,d × %,d", w, h));
+                    detailDimensions.setText(String.format("%,d × %,d", w, h));
+                    annotationCanvas.setWidth(detailImageArea.getWidth());
+                    annotationCanvas.setHeight(detailImageArea.getHeight());
+                    redrawCanvas();
                 });
             }
         });
@@ -456,16 +746,38 @@ public class MainController implements Initializable {
     private void showDetailView() {
         libraryView.setVisible(false);
         libraryView.setManaged(false);
+        mosaicView.setVisible(false);
+        mosaicView.setManaged(false);
+        videoView.setVisible(false);
+        videoView.setManaged(false);
+        shareView.setVisible(false);
+        shareView.setManaged(false);
         detailView.setVisible(true);
         detailView.setManaged(true);
     }
 
+    // CW: extended to restore BorderPane center when returning from DipEdit
     private void showLibraryView() {
         detailView.setVisible(false);
         detailView.setManaged(false);
+        mosaicView.setVisible(false);
+        mosaicView.setManaged(false);
+        videoView.setVisible(false);
+        videoView.setManaged(false);
+        shareView.setVisible(false);
+        shareView.setManaged(false);
         libraryView.setVisible(true);
         libraryView.setManaged(true);
+ 
+        // CW: use mainRoot - safe even when libraryView is detached from scene
+        if (mainRoot != null && dipEditRoot != null
+                && mainRoot.getCenter() == dipEditRoot) {
+            restoreLibraryCenter();
+        }
     }
+    // CW: change end
+    
+
 
     // ── Favourites toggle ─────────────────────────────────────────────────────
 
@@ -496,39 +808,107 @@ public class MainController implements Initializable {
     // ── Annotation ────────────────────────────────────────────────────────────
 
     private void loadAnnotationForImage(String path) {
-        String text = MetadataStore.getInstance().getAnnotation(path);
-        annotationField.setText(text != null ? text : "");
+        String saved = MetadataStore.getInstance().getAnnotation(path);
+        if (saved != null && saved.contains("||")) {
+            // parse "text||x||y"
+            String[] parts = saved.split("\\|\\|");
+            userText = parts[0];
+            textX = parts.length > 1 ? Double.parseDouble(parts[1]) : -1;
+            textY = parts.length > 2 ? Double.parseDouble(parts[2]) : -1;
+        } else {
+            userText = saved != null ? saved : "";
+            textX = -1;
+            textY = -1;
+        }
+        annotationTextField.setText(userText);
     }
-
     @FXML
-    private void handleSaveAnnotation() {
+    private void handleApplyAnnotation() {
         if (currentPath == null) return;
-        MetadataStore.getInstance().saveAnnotation(currentPath, annotationField.getText());
-        refreshAnnotationState();
-    }
+        userText = annotationTextField.getText();
+        if (userText == null || userText.isBlank()) return;
 
-    @FXML
-    private void handleDeleteAnnotation() {
-        if (currentPath == null) return;
-        MetadataStore.getInstance().deleteAnnotation(currentPath);
-        annotationField.clear();
-        refreshAnnotationState();
-    }
+        redrawCanvas();
 
-    /** Rebuilds thumbnail grid and sidebar counts to reflect annotation changes. */
-    private void refreshAnnotationState() {
-        updateCounts();
-        refreshGrid();
-        if (selectedIndex >= 0 && selectedIndex < displayPaths.size()) {
-            selectImage(selectedIndex);
+        try {
+            String toSave = userText + "||" + textX + "||" + textY;
+            MetadataStore.getInstance().saveAnnotation(currentPath, toSave);
+            annotationFeedbackLabel.setText("✓ Applied!");
+            annotationFeedbackLabel.setStyle(
+                "-fx-font-size: 12px; -fx-text-fill: #4A6741; -fx-font-style: italic;");
+            PauseTransition pause = new PauseTransition(Duration.seconds(2.5));
+            pause.setOnFinished(e -> annotationFeedbackLabel.setText(""));
+            pause.play();
+            updateCounts();
+            refreshGrid();
+        } catch (Exception e) {
+            annotationFeedbackLabel.setText("✗ Failed to save");
         }
     }
 
+    @FXML
+    private void handleClearText() {
+        if (currentPath == null) return;
+        userText = "";
+        textX = -1;
+        textY = -1;
+        annotationTextField.clear();
+        redrawCanvas();
+
+        try {
+            MetadataStore.getInstance().deleteAnnotation(currentPath);
+            annotationFeedbackLabel.setText("Annotation cleared.");
+            annotationFeedbackLabel.setStyle(
+                "-fx-font-size: 12px; -fx-text-fill: #9C907D; -fx-font-style: italic;");
+            PauseTransition pause = new PauseTransition(Duration.seconds(2.5));
+            pause.setOnFinished(e -> annotationFeedbackLabel.setText(""));
+            pause.play();
+            updateCounts();
+            refreshGrid();
+        } catch (Exception e) {
+            annotationFeedbackLabel.setText("✗ Failed to clear");
+        }
+    }
+    private void redrawCanvas() {
+        if (annotationCanvas == null) return;
+        if (annotationCanvas.getWidth() == 0 || annotationCanvas.getHeight() == 0) return;
+
+        javafx.scene.canvas.GraphicsContext gc = annotationCanvas.getGraphicsContext2D();
+        gc.clearRect(0, 0, annotationCanvas.getWidth(), annotationCanvas.getHeight());
+
+        if (originalImage != null) {
+            gc.drawImage(originalImage, 0, 0,
+                    annotationCanvas.getWidth(), annotationCanvas.getHeight());
+        }
+
+        if (userText != null && !userText.isBlank()) {
+            int fontSize = (int) fontSizeSlider.getValue();
+            javafx.scene.paint.Color color = fontColorPicker.getValue();
+
+            gc.setFont(javafx.scene.text.Font.font("Serif", fontSize));
+            gc.setFill(color);
+
+            // use saved drag position, or default bottom-center
+            if (textX < 0 || textY < 0) {
+                textX = (annotationCanvas.getWidth() / 2)
+                        - (userText.length() * fontSize * 0.3);
+                textY = annotationCanvas.getHeight() - 20;
+            }
+
+            gc.fillText(userText, textX, textY);
+        }
+    }
     // ── Stub handlers (wired by other modules) ────────────────────────────────
 
     @FXML private void handleNewMosaic() { /* Multimedia module */ }
-    @FXML private void handleAnnotate()  { annotationField.requestFocus(); }
-    @FXML private void handleShare()     { /* Social module */ }
+    @FXML private void handleAnnotate()  { annotationTextField.requestFocus(); }
+    @FXML
+    private void handleShare() {
+        handleNavShare();
+        if (currentPath != null) {
+            shareViewController.prefillAttachment(currentPath);
+        }
+    }
     @FXML private void handleSearch()    { /* search logic */ }
 
     // ── Keyboard navigation ───────────────────────────────────────────────────
@@ -569,4 +949,24 @@ public class MainController implements Initializable {
         if (next < 0 || next >= displayPaths.size()) return;
         openDetail(next);
     }
+
+    // CW: 
+    // ── Application shutdown ──────────────────────────────────────────────────
+ 
+    /**
+     * Call this from the primary stage's setOnCloseRequest handler.
+     * Shuts down the DipEdit module's background threads and releases
+     * OpenCV Mat memory cleanly before the JVM exits.
+     *
+     * Example in MainApp.java:
+     *   primaryStage.setOnCloseRequest(e -> mainController.onAppClose());
+     */
+    public void onAppClose() {
+        if (dipEditController != null) {
+            try {
+                dipEditController.shutdown();
+            } catch (Exception ignored) {}
+        }
+    }
+    // CW: change end
 }

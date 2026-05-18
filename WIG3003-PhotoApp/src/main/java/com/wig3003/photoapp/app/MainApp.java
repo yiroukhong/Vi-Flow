@@ -10,8 +10,11 @@ import nu.pattern.OpenCV;
 public class MainApp extends Application {
 
     @Override
-    public void init() {
+    public void init()throws Exception {
         OpenCV.loadLocally();
+         // Auto-create data/ subdirectories on first run
+        java.nio.file.Files.createDirectories(java.nio.file.Paths.get("data/annotations"));
+        java.nio.file.Files.createDirectories(java.nio.file.Paths.get("data/output"));
     }
 
     @Override

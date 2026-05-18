@@ -1,0 +1,344 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<?import javafx.scene.layout.BorderPane?>
+<?import javafx.scene.layout.HBox?>
+<?import javafx.scene.layout.VBox?>
+<?import javafx.scene.layout.StackPane?>
+<?import javafx.scene.layout.Region?>
+<?import javafx.scene.control.Label?>
+<?import javafx.scene.control.Button?>
+<?import javafx.scene.control.Slider?>
+<?import javafx.scene.control.ScrollPane?>
+<?import javafx.scene.control.TextArea?>
+<?import javafx.scene.control.ToggleButton?>
+<?import javafx.scene.control.ToggleGroup?>
+<?import javafx.scene.image.ImageView?>
+<?import javafx.geometry.Insets?>
+<?import org.kordamp.ikonli.javafx.FontIcon?>
+
+<BorderPane xmlns:fx="http://javafx.com/fxml"
+            fx:controller="com.wig3003.photoapp.synthesis.VideoController"
+            styleClass="root-pane">
+
+    <fx:define>
+        <ToggleGroup fx:id="transGroup"/>
+        <ToggleGroup fx:id="posGroup"/>
+        <ToggleGroup fx:id="fpsGroup"/>
+    </fx:define>
+
+    <!-- ═══════════════════════════════════════════════════════
+         TOP — content header
+    ═══════════════════════════════════════════════════════ -->
+    <top>
+        <HBox styleClass="content-header" alignment="CENTER_LEFT" spacing="10">
+
+            <Label fx:id="videoTitle" text="Video" styleClass="page-title"/>
+
+            <Region HBox.hgrow="ALWAYS"/>
+
+            <Label fx:id="timecodeLabel" text=""
+                   style="-fx-font-size:11;
+                          -fx-font-family:'Consolas',monospace;
+                          -fx-text-fill:#6B6051;"/>
+
+            <Button fx:id="saveDraftBtn" text="Save draft"
+                    onAction="#handleSaveDraft"
+                    styleClass="btn-secondary"
+                    visible="false" managed="false"/>
+
+            <Button fx:id="exportBtn" text="Export"
+                    onAction="#handleExport"
+                    styleClass="btn-primary">
+                <graphic>
+                    <FontIcon iconLiteral="bi-box-arrow-up"
+                              iconSize="14" iconColor="WHITE"/>
+                </graphic>
+            </Button>
+
+        </HBox>
+    </top>
+
+    <!-- ═══════════════════════════════════════════════════════
+         CENTER — canvas + filmstrip
+    ═══════════════════════════════════════════════════════ -->
+    <center>
+        <VBox>
+
+            <!-- Canvas area -->
+            <StackPane fx:id="canvasArea"
+                       styleClass="detail-image-area"
+                       VBox.vgrow="ALWAYS">
+
+                <ImageView fx:id="previewView"
+                           preserveRatio="true" smooth="true"
+                           StackPane.alignment="CENTER"/>
+
+                <Label fx:id="placeholderLabel"
+                       text="Add photos from Favorites to build your video"
+                       StackPane.alignment="CENTER"
+                       style="-fx-font-size:13;
+                              -fx-text-fill:rgba(255,255,255,0.25);
+                              -fx-font-family:'Georgia',serif;
+                              -fx-text-alignment:center;"/>
+
+                <!-- Playback controls pill overlay -->
+                <HBox fx:id="playbackBar"
+                      StackPane.alignment="BOTTOM_CENTER"
+                      alignment="CENTER" spacing="12"
+                      style="-fx-background-color:rgba(0,0,0,0.55);
+                             -fx-padding:10 20 10 20;
+                             -fx-background-radius:999;">
+                    <StackPane.margin><Insets bottom="16"/></StackPane.margin>
+
+                    <Button fx:id="prevBtn" text="←"
+                            onAction="#handlePrev"
+                            style="-fx-background-color:transparent;
+                                   -fx-text-fill:white;
+                                   -fx-font-size:14;
+                                   -fx-cursor:hand;
+                                   -fx-border-color:transparent;"/>
+
+                    <Button fx:id="playPauseBtn" text="▶"
+                            onAction="#handlePlayPause"
+                            style="-fx-background-color:white;
+                                   -fx-text-fill:#1F1B16;
+                                   -fx-background-radius:999;
+                                   -fx-border-radius:999;
+                                   -fx-min-width:32;
+                                   -fx-min-height:32;
+                                   -fx-font-size:14;
+                                   -fx-font-weight:bold;
+                                   -fx-cursor:hand;"/>
+
+                    <Button fx:id="nextBtn" text="→"
+                            onAction="#handleNext"
+                            style="-fx-background-color:transparent;
+                                   -fx-text-fill:white;
+                                   -fx-font-size:14;
+                                   -fx-cursor:hand;
+                                   -fx-border-color:transparent;"/>
+
+                    <Label fx:id="playbackTimeLabel" text="0:00 / 0:00"
+                           style="-fx-font-size:11;
+                                  -fx-text-fill:white;
+                                  -fx-font-family:'Consolas',monospace;
+                                  -fx-min-width:80;"/>
+
+                    <Slider fx:id="seekSlider" min="0" max="1" value="0"
+                            prefWidth="160"/>
+
+                </HBox>
+            </StackPane>
+
+            <!-- Filmstrip area -->
+            <VBox style="-fx-background-color:#F5F0E6;
+                         -fx-border-color:#ECE4D3;
+                         -fx-border-width:1 0 0 0;">
+
+                <!-- Strip header -->
+                <HBox alignment="CENTER_LEFT" spacing="12"
+                      style="-fx-padding:8 16 8 16;">
+
+                    <Label fx:id="stripInfoLabel" text="Strip · 0 Clips · 0:00"
+                           style="-fx-font-size:11; -fx-text-fill:#6B6051;"/>
+
+                    <Region HBox.hgrow="ALWAYS"/>
+
+                    <Button text="+ Add Text" onAction="#handleAddText"
+                            style="-fx-background-color:transparent;
+                                   -fx-border-color:transparent;
+                                   -fx-text-fill:#6B6051;
+                                   -fx-font-size:11;
+                                   -fx-cursor:hand;
+                                   -fx-padding:4 8 4 8;"/>
+
+                </HBox>
+
+                <!-- Filmstrip scroll -->
+                <ScrollPane hbarPolicy="AS_NEEDED" vbarPolicy="NEVER"
+                            fitToHeight="true"
+                            style="-fx-background-color:transparent;
+                                   -fx-background:transparent;
+                                   -fx-border-color:transparent;
+                                   -fx-padding:0 16 12 16;">
+                    <HBox fx:id="filmstripBox" spacing="8" alignment="CENTER_LEFT"
+                          style="-fx-padding:4 0 4 0;"/>
+                </ScrollPane>
+
+            </VBox>
+
+        </VBox>
+    </center>
+
+    <!-- ═══════════════════════════════════════════════════════
+         RIGHT — control panel
+    ═══════════════════════════════════════════════════════ -->
+    <right>
+        <VBox prefWidth="280" minWidth="260" maxWidth="300"
+              style="-fx-background-color:#FBF8F3;
+                     -fx-border-color:#ECE4D3;
+                     -fx-border-width:0 0 0 1;">
+
+            <ScrollPane fitToWidth="true" VBox.vgrow="ALWAYS"
+                        style="-fx-background-color:#FBF8F3;
+                               -fx-border-color:transparent;
+                               -fx-focus-color:transparent;
+                               -fx-faint-focus-color:transparent;">
+
+                <VBox spacing="0">
+
+                    <!-- Clip identity header -->
+                    <VBox style="-fx-padding:12 16 12 16;
+                                 -fx-border-color:#ECE4D3;
+                                 -fx-border-width:0 0 1 0;">
+                        <Label fx:id="clipIndexLabel" text="CLIP · —"
+                               style="-fx-font-size:10;
+                                      -fx-font-weight:bold;
+                                      -fx-text-fill:#9C907D;"/>
+                    </VBox>
+
+                    <!-- Section 1: Duration -->
+                    <VBox style="-fx-padding:16;
+                                 -fx-border-color:#ECE4D3;
+                                 -fx-border-width:0 0 1 0;">
+
+                        <HBox alignment="CENTER_LEFT">
+                            <Label text="Duration"
+                                   style="-fx-font-size:12;
+                                          -fx-font-weight:bold;
+                                          -fx-text-fill:#1F1B16;
+                                          -fx-font-family:'Georgia',serif;"/>
+                            <Region HBox.hgrow="ALWAYS"/>
+                            <Label fx:id="durationValueLabel" text="2.0 s"
+                                   style="-fx-font-size:11;
+                                          -fx-font-weight:bold;
+                                          -fx-text-fill:#C8623F;"/>
+                        </HBox>
+
+                        <Slider fx:id="durationSlider" min="1" max="10" value="2"
+                                maxWidth="Infinity"
+                                style="-fx-padding-top:8;"/>
+
+                    </VBox>
+
+                    <!-- Section 2: Transition -->
+                    <VBox style="-fx-padding:16;
+                                 -fx-border-color:#ECE4D3;
+                                 -fx-border-width:0 0 1 0;">
+
+                        <Label text="Transition"
+                               style="-fx-font-size:10;
+                                      -fx-font-weight:bold;
+                                      -fx-text-fill:#9C907D;"/>
+
+                        <HBox spacing="6" style="-fx-padding:8 0 0 0;">
+                            <ToggleButton fx:id="transNone" text="None"
+                                          toggleGroup="$transGroup" selected="true"
+                                          styleClass="filter-pill"/>
+                            <ToggleButton fx:id="transFade" text="Fade"
+                                          toggleGroup="$transGroup"
+                                          styleClass="filter-pill"/>
+                            <ToggleButton fx:id="transCross" text="Cross"
+                                          toggleGroup="$transGroup"
+                                          styleClass="filter-pill"/>
+                        </HBox>
+
+                    </VBox>
+
+                    <!-- Section 3: Text Overlay -->
+                    <VBox style="-fx-padding:16;
+                                 -fx-border-color:#ECE4D3;
+                                 -fx-border-width:0 0 1 0;">
+
+                        <Label text="TEXT OVERLAY"
+                               style="-fx-font-size:10;
+                                      -fx-font-weight:bold;
+                                      -fx-text-fill:#9C907D;"/>
+
+                        <TextArea fx:id="overlayTextArea"
+                                  promptText="Add a poem or caption…"
+                                  prefHeight="90" wrapText="true"
+                                  styleClass="annotation-field"
+                                  style="-fx-padding-top:8;"/>
+
+                        <Label text="Position"
+                               style="-fx-font-size:10;
+                                      -fx-font-weight:bold;
+                                      -fx-text-fill:#1F1B16;
+                                      -fx-padding:10 0 0 0;"/>
+
+                        <HBox spacing="6" style="-fx-padding:6 0 0 0;">
+                            <ToggleButton fx:id="posTop" text="Top"
+                                          toggleGroup="$posGroup"
+                                          styleClass="filter-pill"/>
+                            <ToggleButton fx:id="posCenter" text="Center"
+                                          toggleGroup="$posGroup"
+                                          styleClass="filter-pill"/>
+                            <ToggleButton fx:id="posBottom" text="Bottom"
+                                          toggleGroup="$posGroup" selected="true"
+                                          styleClass="filter-pill"/>
+                        </HBox>
+
+                        <Label text="Size"
+                               style="-fx-font-size:10;
+                                      -fx-font-weight:bold;
+                                      -fx-text-fill:#1F1B16;
+                                      -fx-padding:10 0 0 0;"/>
+
+                        <HBox spacing="8" alignment="CENTER_LEFT"
+                              style="-fx-padding:6 0 0 0;">
+                            <Slider fx:id="textSizeSlider" min="10" max="60" value="22"
+                                    HBox.hgrow="ALWAYS"/>
+                            <Label fx:id="textSizeLabel" text="22 px"
+                                   style="-fx-font-size:11;
+                                          -fx-font-weight:bold;
+                                          -fx-text-fill:#C8623F;
+                                          -fx-min-width:40;"/>
+                        </HBox>
+
+                    </VBox>
+
+                    <!-- Section 4: Output -->
+                    <VBox style="-fx-padding:16;
+                                 -fx-border-color:#ECE4D3;
+                                 -fx-border-width:0 0 1 0;">
+
+                        <Label text="OUTPUT"
+                               style="-fx-font-size:10;
+                                      -fx-font-weight:bold;
+                                      -fx-text-fill:#9C907D;"/>
+
+                        <Label text="Frame rate"
+                               style="-fx-font-size:10;
+                                      -fx-font-weight:bold;
+                                      -fx-text-fill:#1F1B16;
+                                      -fx-padding:10 0 0 0;"/>
+
+                        <HBox spacing="6" style="-fx-padding:6 0 0 0;">
+                            <ToggleButton fx:id="fps24" text="24"
+                                          toggleGroup="$fpsGroup"
+                                          styleClass="filter-pill"/>
+                            <ToggleButton fx:id="fps30" text="30"
+                                          toggleGroup="$fpsGroup" selected="true"
+                                          styleClass="filter-pill"/>
+                            <ToggleButton fx:id="fps60" text="60"
+                                          toggleGroup="$fpsGroup"
+                                          styleClass="filter-pill"/>
+                        </HBox>
+
+                    </VBox>
+
+                    <!-- Section 5: Compile -->
+                    <VBox style="-fx-padding:16;">
+                        <Button fx:id="compileBtn" text="Compile Video"
+                                onAction="#handleCompile"
+                                maxWidth="Infinity" prefHeight="36"
+                                styleClass="btn-primary"/>
+                    </VBox>
+
+                </VBox>
+            </ScrollPane>
+        </VBox>
+    </right>
+
+</BorderPane>

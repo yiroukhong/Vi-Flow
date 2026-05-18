@@ -10,6 +10,10 @@ import java.util.Collection;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Properties;
+// CW added
+import java.util.ArrayList;
+import java.util.List;
+// CW added-end
 
 public class MetadataStore {
 
@@ -18,10 +22,29 @@ public class MetadataStore {
     private final Map<String, String> annotations = new HashMap<>();
     private final Path storageFile;
 
+    
+    // CW: remembered app library image paths, including imported folder images
+    private final Map<String, String> libraryImages = new HashMap<>();
+    // CW: change end
+    // CW: library storage folder
+    private final Path libraryDir;
+    // CW: change end
+
+
+    // CW modified
     private MetadataStore() {
-        storageFile = Paths.get(System.getProperty("user.home"), ".viflow", "annotations.properties");
+        // CW: shared app folder for annotations and library images
+        Path appDir = Paths.get(System.getProperty("user.home"), ".viflow");
+
+        storageFile = appDir.resolve("annotations.properties");
+
+        // CW: store saved library images under ~/.viflow/library
+        libraryDir = appDir.resolve("library");
+
         load();
     }
+    // CW change end
+
 
     public static MetadataStore getInstance() {
         return INSTANCE;
@@ -29,32 +52,110 @@ public class MetadataStore {
 
     // ── Annotation CRUD ───────────────────────────────────────────────────────
 
-    /** Saves (overwrites) the annotation for path. Passing blank/null deletes it. */
-    public void saveAnnotation(String path, String text) {
-        if (text == null || text.isBlank()) {
-            annotations.remove(path);
-        } else {
-            annotations.put(path, text);
+    // CW: added shared library directory accessor
+    public Path getLibraryDirectory() {
+        try {
+            Files.createDirectories(libraryDir);
+        } catch (IOException ignored) {
+            // non-fatal
+        }
+        return libraryDir;
+    }
+    // CW: change end
+
+    // CW: returns imported folder images plus images saved into ~/.viflow/library
+    public List<String> getLibraryPaths() {
+        List<String> paths = new ArrayList<>();
+
+        for (String path : libraryImages.keySet()) {
+            if (Files.exists(Paths.get(path))) {
+                paths.add(path);
+            }
+        }
+
+        Path dir = getLibraryDirectory();
+
+        try (var stream = Files.list(dir)) {
+            stream.filter(Files::isRegularFile)
+                    .filter(path -> isImageFile(path.getFileName().toString()))
+                    .map(path -> path.toAbsolutePath().toString())
+                    .forEach(path -> {
+                        if (!paths.contains(path)) {
+                            paths.add(path);
+                        }
+                    });
+        } catch (IOException ignored) {
+        }
+
+        paths.sort(String::compareToIgnoreCase);
+        return paths;
+    }
+    // CW: change end
+
+
+    // CW: remember an image path as part of the app library
+    public void saveLibraryImagePath(String path) {
+        if (path == null || path.isBlank()) return;
+        libraryImages.put(path, path);
+        persist();
+    }
+    // CW: change end
+
+    // CW: remember many imported image paths as part of the app library
+    public void saveLibraryImagePaths(Collection<String> paths) {
+        if (paths == null) return;
+        for (String path : paths) {
+            if (path != null && !path.isBlank()) {
+                libraryImages.put(path, path);
+            }
         }
         persist();
     }
+    // CW: change end
 
-    /** Returns the stored annotation text, or null if none exists. */
-    public String getAnnotation(String path) {
-        return annotations.get(path);
+    // CW: added helper for unique output filenames in the library
+    public Path createLibraryImagePath(String prefix, String extension) {
+        String cleanPrefix = prefix == null || prefix.isBlank() ? "image" : prefix;
+        String cleanExt = extension == null || extension.isBlank() ? ".png" : extension;
+        if (!cleanExt.startsWith(".")) cleanExt = "." + cleanExt;
+
+        String filename = cleanPrefix + "_" + System.currentTimeMillis() + cleanExt;
+        return getLibraryDirectory().resolve(filename);
     }
+    // CW: change end
 
-    /** Removes any annotation for path. */
-    public void deleteAnnotation(String path) {
-        annotations.remove(path);
-        persist();
+    // CW: added shared image extension check
+    private boolean isImageFile(String name) {
+        String lower = name.toLowerCase();
+        return lower.endsWith(".png")
+                || lower.endsWith(".jpg")
+                || lower.endsWith(".jpeg")
+                || lower.endsWith(".bmp")
+                || lower.endsWith(".webp")
+                || lower.endsWith(".tif")
+                || lower.endsWith(".tiff");
     }
+    // CW: change end
+    
+    public static void saveAnnotation(String absolutePath, String annotation) {
+    if (annotation == null)
+        throw new IllegalArgumentException("annotation must not be null");
+    INSTANCE.annotations.put(absolutePath, annotation);
+    INSTANCE.persist();
+}
 
-    /** True if path has a non-empty annotation stored. */
-    public boolean hasAnnotation(String path) {
-        return annotations.containsKey(path);
-    }
+public static String getAnnotation(String absolutePath) {
+    return INSTANCE.annotations.getOrDefault(absolutePath, null);
+}
 
+public static void deleteAnnotation(String absolutePath) {
+    INSTANCE.annotations.remove(absolutePath);
+    INSTANCE.persist();
+}
+
+public static boolean hasAnnotation(String absolutePath) {
+    return INSTANCE.annotations.containsKey(absolutePath);
+}
     /** Count of paths in the given collection that have annotations. */
     public int annotationCount(Collection<String> paths) {
         int n = 0;
@@ -74,16 +175,36 @@ public class MetadataStore {
         } catch (IOException e) {
             return;
         }
+        //CW change
         for (String key : props.stringPropertyNames()) {
-            annotations.put(key, props.getProperty(key));
+            String value = props.getProperty(key);
+
+            if (key.startsWith("annotation.")) {
+                annotations.put(key.substring("annotation.".length()), value);
+            } else if (key.startsWith("library.")) {
+                libraryImages.put(value, value);
+            } else {
+                // CW: support old annotation format
+                annotations.put(key, value);
+            }
         }
+        // CW change end 
     }
 
     private void persist() {
         try {
             Files.createDirectories(storageFile.getParent());
             Properties props = new Properties();
-            annotations.forEach(props::setProperty);
+            // CW
+            annotations.forEach((path, text) ->
+                    props.setProperty("annotation." + path, text));
+
+            int i = 0;
+            for (String path : libraryImages.keySet()) {
+                props.setProperty("library." + i, path);
+                i++;
+            }
+            //CW
             try (OutputStream out = Files.newOutputStream(storageFile)) {
                 props.store(out, "Vi-Flow annotations");
             }

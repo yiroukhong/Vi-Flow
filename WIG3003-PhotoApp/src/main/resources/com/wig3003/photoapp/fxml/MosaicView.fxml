@@ -1,0 +1,245 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<?import javafx.scene.layout.*?>
+<?import javafx.scene.control.*?>
+<?import javafx.scene.image.ImageView?>
+<?import javafx.scene.canvas.Canvas?>
+<?import javafx.geometry.Insets?>
+<?import org.kordamp.ikonli.javafx.FontIcon?>
+
+<BorderPane xmlns:fx="http://javafx.com/fxml"
+            fx:controller="com.wig3003.photoapp.synthesis.MosaicController"
+            styleClass="root-pane">
+
+    <!-- ═══════════════════════════════════════════════════════
+         TOP — content header
+    ═══════════════════════════════════════════════════════ -->
+    <top>
+        <HBox styleClass="content-header" alignment="CENTER_LEFT" spacing="10">
+
+            <Label fx:id="mosaicTitle" text="Mosaic - "
+                   styleClass="page-title"/>
+
+            <Region HBox.hgrow="ALWAYS"/>
+
+            <Label fx:id="progressLabel" text=""
+                   visible="false" managed="false"
+                   style="-fx-font-size:11;
+                          -fx-text-fill:#6B6051;"/>
+
+            <Button fx:id="cancelBtn" text="Cancel"
+                    onAction="#handleCancel"
+                    styleClass="btn-secondary"
+                    visible="false" managed="false"/>
+
+            <Button fx:id="exportBtn" text="Export"
+                    onAction="#handleExport"
+                    styleClass="btn-primary">
+                <graphic>
+                    <FontIcon iconLiteral="bi-box-arrow-up"
+                              iconSize="14" iconColor="WHITE"/>
+                </graphic>
+            </Button>
+
+        </HBox>
+    </top>
+
+    <!-- ═══════════════════════════════════════════════════════
+         RIGHT — control panel
+    ═══════════════════════════════════════════════════════ -->
+    <right>
+        <VBox prefWidth="280" minWidth="260" maxWidth="300"
+              style="-fx-background-color:#faf6f1;
+                     -fx-border-color:#ece4d3;
+                     -fx-border-width:0 0 0 1;">
+
+            <ScrollPane fitToWidth="true" VBox.vgrow="ALWAYS"
+                        style="-fx-background-color:#faf6f1;
+                               -fx-border-color:transparent;
+                               -fx-focus-color:transparent;
+                               -fx-faint-focus-color:transparent;">
+
+                <VBox spacing="0">
+
+                    <!-- ── SECTION 1: TILE POOL ── -->
+                    <VBox style="-fx-padding:16;
+                                 -fx-border-color:#ece4d3;
+                                 -fx-border-width:0 0 1 0;">
+
+                        <HBox alignment="CENTER_LEFT">
+                            <Label text="TILE POOL"
+                                   style="-fx-font-size:10;
+                                          -fx-font-weight:bold;
+                                          -fx-text-fill:#9C907D;"/>
+                            <Region HBox.hgrow="ALWAYS"/>
+                            <Label fx:id="tileCountLabel" text="0 photos"
+                                   style="-fx-font-size:11;
+                                          -fx-text-fill:#9C907D;"/>
+                        </HBox>
+
+                        <Label fx:id="tileSourceLabel" text="Favorites"
+                               style="-fx-font-size:13;
+                                      -fx-font-weight:bold;
+                                      -fx-text-fill:#1F1B16;
+                                      -fx-padding:6 0 0 0;"/>
+
+                        <TilePane fx:id="tilePreviewPane"
+                                  prefColumns="7"
+                                  hgap="3" vgap="3"
+                                  style="-fx-padding:8 0 0 0;"/>
+
+                        <Button text="Change source…"
+                                onAction="#handleChangeSource"
+                                style="-fx-font-size:11;
+                                       -fx-background-color:transparent;
+                                       -fx-text-fill:#C8623F;
+                                       -fx-border-color:transparent;
+                                       -fx-cursor:hand;
+                                       -fx-padding:8 0 0 0;"/>
+                    </VBox>
+
+                    <!-- ── SECTION 3: GRID ── -->
+                    <VBox style="-fx-padding:16;
+                                 -fx-border-color:#ece4d3;
+                                 -fx-border-width:0 0 1 0;">
+
+                        <Label text="GRID"
+                               style="-fx-font-size:10;
+                                      -fx-font-weight:bold;
+                                      -fx-text-fill:#9C907D;"/>
+
+                        <Label text="Columns"
+                               style="-fx-font-size:10;
+                                      -fx-font-weight:bold;
+                                      -fx-text-fill:#1F1B16;
+                                      -fx-padding:10 0 6 0;"/>
+                        <HBox spacing="8" alignment="CENTER_LEFT">
+                            <Slider fx:id="columnsSlider"
+                                    min="2" max="40" value="12"
+                                    HBox.hgrow="ALWAYS"
+                                    showTickMarks="false"
+                                    blockIncrement="1"/>
+                            <Label fx:id="columnsLabel" text="12"
+                                   style="-fx-font-size:11;
+                                          -fx-font-weight:bold;
+                                          -fx-text-fill:#C8623F;
+                                          -fx-min-width:28;"/>
+                        </HBox>
+
+                        <Label text="Tile size"
+                               style="-fx-font-size:10;
+                                      -fx-font-weight:bold;
+                                      -fx-text-fill:#1F1B16;
+                                      -fx-padding:8 0 6 0;"/>
+                        <HBox spacing="8" alignment="CENTER_LEFT">
+                            <Slider fx:id="tileSizeSlider"
+                                    min="80" max="400" value="200"
+                                    HBox.hgrow="ALWAYS"
+                                    blockIncrement="10"/>
+                            <Label fx:id="tileSizeLabel" text="200 px"
+                                   style="-fx-font-size:11;
+                                          -fx-font-weight:bold;
+                                          -fx-text-fill:#C8623F;
+                                          -fx-min-width:46;"/>
+                        </HBox>
+
+                        <Label text="Tile gap"
+                               style="-fx-font-size:10;
+                                      -fx-font-weight:bold;
+                                      -fx-text-fill:#1F1B16;
+                                      -fx-padding:8 0 6 0;"/>
+                        <HBox spacing="8" alignment="CENTER_LEFT">
+                            <Slider fx:id="tileGapSlider"
+                                    min="0" max="20" value="2"
+                                    HBox.hgrow="ALWAYS"
+                                    blockIncrement="1"/>
+                            <Label fx:id="tileGapLabel" text="2 px"
+                                   style="-fx-font-size:11;
+                                          -fx-font-weight:bold;
+                                          -fx-text-fill:#C8623F;
+                                          -fx-min-width:36;"/>
+                        </HBox>
+                    </VBox>
+
+                    <!-- ── SECTION 4: GENERATE ── -->
+                    <VBox style="-fx-padding:16;">
+
+                        <Button fx:id="generateBtn"
+                                text="Generate Mosaic"
+                                onAction="#handleGenerate"
+                                maxWidth="Infinity"
+                                prefHeight="36"
+                                styleClass="btn-primary"/>
+                    </VBox>
+
+                </VBox>
+            </ScrollPane>
+        </VBox>
+    </right>
+
+    <!-- ═══════════════════════════════════════════════════════
+         CENTER — canvas + status bar
+    ═══════════════════════════════════════════════════════ -->
+    <center>
+        <VBox>
+
+            <!-- Canvas area -->
+            <StackPane fx:id="canvasArea"
+                       styleClass="detail-image-area"
+                       VBox.vgrow="ALWAYS">
+
+                <ScrollPane fx:id="mosaicScrollPane"
+                            pannable="true"
+                            fitToWidth="true"
+                            fitToHeight="true"
+                            hbarPolicy="AS_NEEDED"
+                            vbarPolicy="AS_NEEDED"
+                            style="-fx-background-color:transparent;
+                                   -fx-background:transparent;
+                                   -fx-border-color:transparent;
+                                   -fx-focus-color:transparent;
+                                   -fx-faint-focus-color:transparent;">
+
+                    <StackPane fx:id="mosaicCheckerPane"
+                               style="-fx-background-color:transparent;">
+
+                        <Canvas fx:id="checkerCanvas"
+                                mouseTransparent="true"/>
+
+                        <ImageView fx:id="mosaicView"
+                                   preserveRatio="true"
+                                   smooth="true"
+                                   pickOnBounds="false"/>
+
+                        <Label fx:id="placeholderLabel"
+                               text="Select a target image and tile pool to generate a mosaic"
+                               StackPane.alignment="CENTER"
+                               style="-fx-font-size:13;
+                                      -fx-text-fill:rgba(255,255,255,0.25);
+                                      -fx-font-family:'Georgia',serif;
+                                      -fx-text-alignment:center;"/>
+                    </StackPane>
+                </ScrollPane>
+            </StackPane>
+
+            <!-- Status bar -->
+            <HBox spacing="16" alignment="CENTER_LEFT"
+                  style="-fx-padding:8 20;
+                         -fx-background-color:#1F1B16;">
+
+                <Label fx:id="gridInfoLabel" text=""
+                       style="-fx-font-size:11;
+                              -fx-font-family:'Consolas',monospace;
+                              -fx-text-fill:rgba(255,255,255,0.35);"/>
+
+                <Region HBox.hgrow="ALWAYS"/>
+
+                <Label fx:id="livePreviewLabel" text="Live preview"
+                       style="-fx-font-size:11;
+                              -fx-text-fill:rgba(255,255,255,0.25);"/>
+            </HBox>
+
+        </VBox>
+    </center>
+
+</BorderPane>

@@ -16,6 +16,9 @@
 <?import javafx.scene.layout.TilePane?>
 <?import javafx.scene.layout.VBox?>
 <?import org.kordamp.ikonli.javafx.FontIcon?>
+<?import javafx.scene.canvas.Canvas?>
+<?import javafx.scene.control.ColorPicker?>
+<?import javafx.scene.control.Slider?>
 
 <BorderPane xmlns="http://javafx.com/javafx/21"
             xmlns:fx="http://javafx.com/fxml/1"
@@ -87,7 +90,7 @@
                 </Label>
             </HBox>
 
-            <HBox styleClass="nav-item" onMouseClicked="#handleNavMosaic">
+            <HBox fx:id="navMosaic" styleClass="nav-item" onMouseClicked="#handleNavMosaic">
                 <VBox.margin><Insets top="2" right="8" bottom="2" left="8"/></VBox.margin>
                 <FontIcon iconLiteral="bi-grid" iconSize="16" styleClass="nav-icon-label"/>
                 <Label text="Mosaic" styleClass="nav-label">
@@ -96,7 +99,7 @@
                 <Label text="0" styleClass="nav-count"/>
             </HBox>
 
-            <HBox styleClass="nav-item" onMouseClicked="#handleNavVideo">
+            <HBox fx:id="navVideo" styleClass="nav-item" onMouseClicked="#handleNavVideo">
                 <VBox.margin><Insets top="2" right="8" bottom="2" left="8"/></VBox.margin>
                 <FontIcon iconLiteral="bi-camera-video" iconSize="16" styleClass="nav-icon-label"/>
                 <Label text="Video" styleClass="nav-label">
@@ -105,13 +108,14 @@
                 <Label text="0" styleClass="nav-count"/>
             </HBox>
 
-            <HBox styleClass="nav-item" onMouseClicked="#handleNavShare">
+            <HBox fx:id="navShare" styleClass="nav-item" onMouseClicked="#handleNavShare">
                 <VBox.margin><Insets top="2" right="8" bottom="2" left="8"/></VBox.margin>
                 <FontIcon iconLiteral="bi-share" iconSize="16" styleClass="nav-icon-label"/>
                 <Label text="Share" styleClass="nav-label">
                     <HBox.hgrow>ALWAYS</HBox.hgrow>
                 </Label>
             </HBox>
+            
 
         </VBox>
     </left>
@@ -211,7 +215,8 @@
 
             <!-- ─── DETAIL VIEW ───────────────────────────────── -->
             <VBox fx:id="detailView" styleClass="detail-view"
-                  visible="false" managed="false">
+                  visible="false" managed="false"
+                  VBox.vgrow="ALWAYS">
 
                 <!-- Detail header -->
                 <!-- Detail header -->
@@ -224,37 +229,85 @@
                     <Button fx:id="heartButton" styleClass="heart-btn"
                             onAction="#handleToggleFavourite">
                     </Button>
-                    <Button text="Annotate" styleClass="btn-secondary"
-                            onAction="#handleAnnotate"/>
                     <Button text="Share" styleClass="btn-secondary"
                             onAction="#handleShare"/>
                 </HBox>
 
                 <!-- Full-res image area (dark canvas) -->
                 <StackPane fx:id="detailImageArea"
-                           styleClass="detail-image-area"
-                           VBox.vgrow="ALWAYS">
+                        styleClass="detail-image-area"
+                        VBox.vgrow="ALWAYS"
+                        minHeight="300"
+                        maxHeight="600">
                     <ImageView fx:id="detailImageView"
-                               preserveRatio="true" smooth="true"
-                               pickOnBounds="true"/>
+                            preserveRatio="true" smooth="true"
+                            pickOnBounds="true"/>
+                    <!-- Canvas sits on top — text + heart drawn here -->
+                    <Canvas fx:id="annotationCanvas"/>
                 </StackPane>
 
                 <!-- Annotation panel -->
-                <VBox styleClass="annotation-panel">
-                    <Label text="ANNOTATION" styleClass="annotation-section-label"/>
-                    <TextArea fx:id="annotationField"
-                              styleClass="annotation-field"
-                              promptText="Add a note to this image…"
-                              wrapText="true"/>
-                    <HBox styleClass="annotation-actions" spacing="8" alignment="CENTER_LEFT">
-                        <Button text="Save note" styleClass="btn-primary"
-                                onAction="#handleSaveAnnotation"/>
-                        <Button text="Delete" styleClass="btn-secondary"
-                                onAction="#handleDeleteAnnotation"/>
-                    </HBox>
+            <VBox styleClass="annotation-panel" spacing="8" VBox.vgrow="NEVER">
+                <padding><Insets top="10" right="16" bottom="12" left="16"/></padding>
+
+                <Label text="ANNOTATE IMAGE" styleClass="annotation-section-label"/>
+
+                <!-- Text input row -->
+                <HBox spacing="10" alignment="CENTER_LEFT">
+                    <Label text="Text" minWidth="70" maxWidth="70"
+                        style="-fx-text-fill: #888; -fx-font-size: 12px;"/>
+                    <TextField fx:id="annotationTextField"
+                            promptText="Type annotation text..."
+                            HBox.hgrow="ALWAYS"/>
+                </HBox>
+
+                <!-- Font size row -->
+                <HBox spacing="10" alignment="CENTER_LEFT">
+                    <Label text="Font size" minWidth="70" maxWidth="70"
+                        style="-fx-text-fill: #888; -fx-font-size: 12px;"/>
+                    <Slider fx:id="fontSizeSlider" min="10" max="72" value="18"
+                            HBox.hgrow="ALWAYS"/>
+                    <Label fx:id="fontSizeLabel" text="18 pt"
+                        minWidth="36" maxWidth="36"
+                        style="-fx-font-size: 12px; -fx-text-fill: #666;"/>
+                </HBox>
+
+                <!-- Font color row -->
+                <HBox spacing="10" alignment="CENTER_LEFT">
+                    <Label text="Font color" minWidth="70" maxWidth="70"
+                        style="-fx-text-fill: #888; -fx-font-size: 12px;"/>
+                        <ColorPicker fx:id="fontColorPicker" prefWidth="180" minWidth="180" maxWidth="180" prefHeight="32"/>
+                </HBox>
+
+                <!-- Buttons row -->
+                <HBox alignment="CENTER_RIGHT" spacing="10">
+                    <padding><Insets top="4"/></padding>
+                    <Label fx:id="annotationFeedbackLabel" text=""
+                        style="-fx-font-size: 12px; -fx-text-fill: #6B6051; -fx-font-style: italic;">
+                        <HBox.hgrow>ALWAYS</HBox.hgrow>
+                    </Label>
+                    <Button text="Clear text" styleClass="btn-secondary"
+                            onAction="#handleClearText" prefWidth="100"/>
+                    <Button text="Save" styleClass="btn-primary"
+                            onAction="#handleSaveAndBack" prefWidth="100"/>
+                </HBox>
                 </VBox>
 
             </VBox>
+                        <!-- ─── MOSAIC VIEW ───────────────────────────── -->
+            <fx:include fx:id="mosaicView"
+                        source="MosaicView.fxml"
+                        visible="false" managed="false"/>
+
+            <!-- ─── VIDEO VIEW ───────────────────────────── -->
+            <fx:include fx:id="videoView"
+                        source="VideoView.fxml"
+                        visible="false" managed="false"/>
+
+            <!-- ─── SHARE VIEW ──────────────────────────── -->
+            <fx:include fx:id="shareView"
+                        source="ShareView.fxml"
+                        visible="false" managed="false"/>
 
         </StackPane>
     </center>

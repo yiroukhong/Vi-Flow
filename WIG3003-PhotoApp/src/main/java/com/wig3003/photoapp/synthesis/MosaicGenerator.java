@@ -13,12 +13,12 @@ import java.util.List;
 
 /**
  * Winnie — Multimedia Synthesis
- * Implementation of the Mosaic Generator as per Contract §6[cite: 3, 7].
+ * Mosaic Generator — Contract §6
  */
 public class MosaicGenerator {
 
     /**
-     * Generates a mosaic from a target image and a pool of tiles.
+     * Generates a mosaic from a target image and a pool of tile images.
      *
      * @param tilePaths  List of file paths to tile images
      * @param targetPath File path to the target image
@@ -27,7 +27,8 @@ public class MosaicGenerator {
      * @throws IOException              If target or tile images cannot be loaded
      * @throws IllegalArgumentException If inputs are invalid
      */
-    public String generateMosaic(List<String> tilePaths, String targetPath, int tileSize) throws IOException {
+    public String generateMosaic(List<String> tilePaths, String targetPath, int tileSize)
+            throws IOException {
 
         // 1. Validate inputs
         if (tilePaths == null || tilePaths.isEmpty()) {
@@ -46,7 +47,7 @@ public class MosaicGenerator {
             throw new IOException("Failed to load target image: " + targetPath);
         }
 
-        // 3. Normalise target to BGR 3-channel so downstream comparisons are consistent
+        // 3. Normalise target to BGR 3-channel
         target = normaliseToBGR(target);
 
         // 4. Compute grid dimensions (floor division keeps ROIs within bounds)
@@ -62,18 +63,13 @@ public class MosaicGenerator {
         // 5. Load, normalise, and resize all tile images to tileSize x tileSize
         List<Mat> tiles = new ArrayList<>();
         for (String p : tilePaths) {
-            if (p == null || p.isBlank()) {
-                continue; // skip invalid entries rather than crashing
-            }
+            if (p == null || p.isBlank()) continue;
             Mat t = ImageUtils.loadMatFromPath(p);
             if (t == null || t.empty()) {
                 System.err.println("Warning: could not load tile image, skipping: " + p);
                 continue;
             }
-
-            // Normalise channel count before resizing
             t = normaliseToBGR(t);
-
             Mat resized = new Mat();
             Imgproc.resize(t, resized, new Size(tileSize, tileSize));
             tiles.add(resized);
@@ -83,18 +79,16 @@ public class MosaicGenerator {
             throw new IllegalArgumentException("No valid tile images could be loaded from tilePaths");
         }
 
-        // 6. Build mosaic Mat (3-channel BGR, same type as normalised tiles)
+        // 6. Build mosaic Mat
         Mat mosaic = Mat.zeros(rows * tileSize, cols * tileSize, CvType.CV_8UC3);
 
-        // 7. Fill the grid by finding the best-matching tile for each cell
+        // 7. For each grid cell, find best-matching tile by average BGR distance
         for (int r = 0; r < rows; r++) {
             for (int c = 0; c < cols; c++) {
-                Rect roi = new Rect(c * tileSize, r * tileSize, tileSize, tileSize);
-                Mat region = target.submat(roi);
+                Rect roi    = new Rect(c * tileSize, r * tileSize, tileSize, tileSize);
+                Mat  region = target.submat(roi);
+                Mat  tile   = bestMatchingTile(region, tiles);
 
-                Mat tile = bestMatchingTile(region, tiles);
-
-                // Safety: ensure the tile type matches the mosaic before copying
                 if (tile.type() != CvType.CV_8UC3) {
                     tile = normaliseToBGR(tile);
                 }
@@ -106,10 +100,9 @@ public class MosaicGenerator {
         // 8. Save mosaic to data/output/
         Files.createDirectories(Paths.get("data/output"));
         String filename = "mosaic_" + System.currentTimeMillis() + ".png";
-        String outPath = "data/output/" + filename;
+        String outPath  = "data/output/" + filename;
 
-        boolean saved = Imgcodecs.imwrite(outPath, mosaic);
-        if (!saved) {
+        if (!Imgcodecs.imwrite(outPath, mosaic)) {
             throw new IOException("Imgcodecs.imwrite failed to save mosaic to: " + outPath);
         }
 
@@ -121,53 +114,17 @@ public class MosaicGenerator {
     // -------------------------------------------------------------------------
 
     /**
-     * Converts a Mat to a standard BGR 3-channel (CV_8UC3) Mat.
-     * Handles grayscale (1-channel) and BGRA (4-channel) inputs.
-     * Returns the original Mat unchanged if it is already CV_8UC3.
-     */
-    private Mat normaliseToBGR(Mat src) {
-        int channels = src.channels();
-
-        if (channels == 3) {
-            // Already BGR — return as-is
-            return src;
-        }
-
-        Mat dst = new Mat();
-
-        if (channels == 4) {
-            // BGRA → BGR  (common with PNG tiles that have an alpha channel)
-            Imgproc.cvtColor(src, dst, Imgproc.COLOR_BGRA2BGR);
-        } else if (channels == 1) {
-            // Grayscale → BGR
-            Imgproc.cvtColor(src, dst, Imgproc.COLOR_GRAY2BGR);
-        } else {
-            // Unexpected channel count — attempt a best-effort conversion and warn
-            System.err.println("Warning: unexpected channel count (" + channels + "), attempting BGRA2BGR conversion.");
-            Imgproc.cvtColor(src, dst, Imgproc.COLOR_BGRA2BGR);
-        }
-
-        return dst;
-    }
-
-    /**
-     * Finds the best matching tile for a target region using mean BGR Euclidean distance.
-     *
-     * @param region The sub-region of the target image to match
-     * @param tiles  List of candidate tile Mats (must be non-empty)
-     * @return The tile Mat whose mean colour is closest to the region's mean colour
+     * Finds the best matching tile using mean BGR Euclidean distance.
      */
     private Mat bestMatchingTile(Mat region, List<Mat> tiles) {
-        // Compute mean BGR of the target region
         Scalar regionMean = Core.mean(region);
 
-        Mat bestTile = tiles.get(0);
+        Mat    bestTile = tiles.get(0);
         double bestDist = Double.MAX_VALUE;
 
         for (Mat tile : tiles) {
             Scalar tileMean = Core.mean(tile);
 
-            // Euclidean distance in BGR colour space
             double dist = Math.sqrt(
                 Math.pow(regionMean.val[0] - tileMean.val[0], 2) +
                 Math.pow(regionMean.val[1] - tileMean.val[1], 2) +
@@ -181,5 +138,24 @@ public class MosaicGenerator {
         }
 
         return bestTile;
+    }
+
+    /**
+     * Converts a Mat to BGR 3-channel (CV_8UC3).
+     * Handles grayscale (1-ch) and BGRA (4-ch) inputs.
+     */
+    private Mat normaliseToBGR(Mat src) {
+        if (src.channels() == 3) return src;
+
+        Mat dst = new Mat();
+        if (src.channels() == 4) {
+            Imgproc.cvtColor(src, dst, Imgproc.COLOR_BGRA2BGR);
+        } else if (src.channels() == 1) {
+            Imgproc.cvtColor(src, dst, Imgproc.COLOR_GRAY2BGR);
+        } else {
+            System.err.println("Warning: unexpected channel count (" + src.channels() + ")");
+            Imgproc.cvtColor(src, dst, Imgproc.COLOR_BGRA2BGR);
+        }
+        return dst;
     }
 }
