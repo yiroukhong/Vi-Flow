@@ -2,7 +2,9 @@ package com.wig3003.photoapp.synthesis;
 
 import com.wig3003.photoapp.util.ImageUtils;
 
+import org.opencv.core.Core;
 import org.opencv.core.Mat;
+import org.opencv.core.Rect;
 import org.opencv.core.Size;
 import org.opencv.imgproc.Imgproc;
 import org.opencv.videoio.VideoWriter;
@@ -36,9 +38,10 @@ public class VideoCompiler {
      *
      * @param imagePaths       Ordered list of image file paths (oldest-first, do NOT re-sort)
      * @param durationPerPhoto Duration in seconds each image is shown (must be > 0)
-     * @param overlayText      Text drawn at bottom-center of every frame via Graphics2D
+     * @param overlayText      Text drawn on every frame via Graphics2D
      * @param outputDir        Directory to save the output AVI file
      * @param transitionType   Transition between clips: "NONE", "FADE", or "CROSS"
+     * @param textPosition     Position of overlay text: "TOP", "CENTER", or "BOTTOM"
      * @return Output file path of the saved AVI
      * @throws IOException              If an image cannot be loaded or the video cannot be saved
      * @throws IllegalArgumentException If any input parameter is invalid
@@ -48,7 +51,8 @@ public class VideoCompiler {
             int durationPerPhoto,
             String overlayText,
             String outputDir,
-            String transitionType) throws IOException {
+            String transitionType,
+            String textPosition) throws IOException {
 
         // 1. Validate inputs
         if (imagePaths == null || imagePaths.isEmpty()) {
@@ -61,10 +65,16 @@ public class VideoCompiler {
             throw new IllegalArgumentException("outputDir must not be null or blank");
         }
 
-        // Normalise transitionType — default to NONE if null or unrecognised
+        // Normalise transitionType
         String transition = (transitionType == null) ? "NONE" : transitionType.toUpperCase();
         if (!transition.equals("FADE") && !transition.equals("CROSS")) {
             transition = "NONE";
+        }
+
+        // Normalise textPosition — default to BOTTOM per contract §6
+        String position = (textPosition == null) ? "BOTTOM" : textPosition.toUpperCase();
+        if (!position.equals("TOP") && !position.equals("CENTER")) {
+            position = "BOTTOM";
         }
 
         // 2. Ensure output directory exists
@@ -75,7 +85,7 @@ public class VideoCompiler {
         String outPath   = outputDir + File.separator + filename;
 
         VideoWriter writer    = new VideoWriter();
-        int fourcc = VideoWriter.fourcc('M', 'J', 'P', 'G');
+        int         fourcc    = VideoWriter.fourcc('X', 'V', 'I', 'D');
         Size        frameSize = new Size(FRAME_WIDTH, FRAME_HEIGHT);
 
         writer.open(outPath, fourcc, FPS, frameSize, true);
@@ -86,7 +96,7 @@ public class VideoCompiler {
         }
 
         // 4. Process each image
-        int totalFramesPerClip = durationPerPhoto * (int) FPS; // e.g. 2s * 25fps = 50 frames
+        int totalFramesPerClip = durationPerPhoto * (int) FPS;
 
         for (int i = 0; i < imagePaths.size(); i++) {
             String imgPath = imagePaths.get(i);
@@ -96,29 +106,32 @@ public class VideoCompiler {
                 continue;
             }
 
-            // a. Load and resize to 1280x720
+            // a. Load image
             Mat frame = ImageUtils.loadMatFromPath(imgPath);
             if (frame == null || frame.empty()) {
                 System.err.println("Warning: could not load image, skipping: " + imgPath);
                 continue;
             }
-            Imgproc.resize(frame, frame, frameSize);
 
-            // b. Convert Mat → custom BufferedImage (Yirou's util)
+            // b. Letterbox resize — preserves aspect ratio, fills remainder with black
+            //    Fixes portrait images being stretched into 1280x720 landscape frame
+            Mat letterboxed = letterboxResize(frame);
+
+            // c. Convert Mat → custom BufferedImage (Yirou's util)
             com.wig3003.photoapp.util.BufferedImage customBi =
-                    ImageUtils.matToBufferedImage(frame);
+                    ImageUtils.matToBufferedImage(letterboxed);
 
-            // c. Bridge to standard java.awt.image.BufferedImage for Graphics2D
+            // d. Bridge to standard java.awt.image.BufferedImage for Graphics2D
             BufferedImage javaBi = new BufferedImage(
                     customBi.getWidth(),
                     customBi.getHeight(),
                     BufferedImage.TYPE_3BYTE_BGR);
 
-            byte[] srcData  = customBi.getData(); // defensive copy per Yirou's impl
+            byte[] srcData  = customBi.getData();
             byte[] destData = ((DataBufferByte) javaBi.getRaster().getDataBuffer()).getData();
             System.arraycopy(srcData, 0, destData, 0, srcData.length);
 
-            // d. Draw overlay text via Graphics2D — NOT Imgproc.putText() per contract §6
+            // e. Draw overlay text via Graphics2D at the specified position
             if (overlayText != null && !overlayText.isBlank()) {
                 Graphics2D g2d = javaBi.createGraphics();
                 g2d.setRenderingHint(
@@ -129,12 +142,12 @@ public class VideoCompiler {
 
                 FontMetrics fm    = g2d.getFontMetrics();
                 int         textX = (FRAME_WIDTH - fm.stringWidth(overlayText)) / 2;
-                int         textY = FRAME_HEIGHT - 40; // bottom-center per contract §6
+                int         textY = computeTextY(position, fm);
                 g2d.drawString(overlayText, textX, textY);
                 g2d.dispose();
             }
 
-            // e. Bridge back: standard BufferedImage → custom BufferedImage
+            // f. Bridge back: standard BufferedImage → custom BufferedImage
             byte[] modifiedData = ((DataBufferByte) javaBi.getRaster().getDataBuffer()).getData();
             com.wig3003.photoapp.util.BufferedImage modifiedCustomBi =
                     new com.wig3003.photoapp.util.BufferedImage(
@@ -143,27 +156,29 @@ public class VideoCompiler {
                             customBi.getChannels(),
                             modifiedData);
 
-            // f. Convert back to Mat
+            // g. Convert back to Mat
             Mat overlaidFrame = ImageUtils.bufferedImageToMat(modifiedCustomBi);
 
-            // g. Write main clip frames
+            // h. Write main clip frames
             for (int f = 0; f < totalFramesPerClip; f++) {
                 writer.write(overlaidFrame);
             }
 
-            // h. Write transition frames between clips (not after the last clip)
+            // i. Write transition frames between clips (not after last clip)
             if (!transition.equals("NONE") && i < imagePaths.size() - 1) {
-                String nextPath = imagePaths.get(i + 1);
+                String nextPath  = imagePaths.get(i + 1);
                 Mat    nextFrame = ImageUtils.loadMatFromPath(nextPath);
 
                 if (nextFrame != null && !nextFrame.empty()) {
-                    Imgproc.resize(nextFrame, nextFrame, frameSize);
-                    writeTransitionFrames(writer, overlaidFrame, nextFrame, transition);
+                    Mat nextLetterboxed = letterboxResize(nextFrame);
+                    writeTransitionFrames(writer, overlaidFrame, nextLetterboxed, transition);
+                    nextLetterboxed.release();
                     nextFrame.release();
                 }
             }
 
             overlaidFrame.release();
+            letterboxed.release();
             frame.release();
         }
 
@@ -178,20 +193,66 @@ public class VideoCompiler {
     // -------------------------------------------------------------------------
 
     /**
+     * Computes the Y coordinate for overlay text based on position.
+     * TOP    → near top of frame (font height + 40px margin)
+     * CENTER → vertical centre of frame
+     * BOTTOM → near bottom of frame (frame height - 40px margin)
+     */
+    private int computeTextY(String position, FontMetrics fm) {
+        switch (position) {
+            case "TOP":
+                return fm.getAscent() + 40;
+            case "CENTER":
+                return (FRAME_HEIGHT + fm.getAscent() - fm.getDescent()) / 2;
+            case "BOTTOM":
+            default:
+                return FRAME_HEIGHT - 40;
+        }
+    }
+
+    /**
+     * Resizes a Mat into a 1280x720 frame while preserving aspect ratio.
+     * Empty space is filled with black (letterbox for landscape,
+     * pillarbox for portrait images).
+     */
+    private Mat letterboxResize(Mat src) {
+        Mat canvas = Mat.zeros(FRAME_HEIGHT, FRAME_WIDTH, src.type());
+
+        double scaleW = (double) FRAME_WIDTH  / src.cols();
+        double scaleH = (double) FRAME_HEIGHT / src.rows();
+        double scale  = Math.min(scaleW, scaleH); // fit inside, no cropping
+
+        int scaledW = (int) (src.cols() * scale);
+        int scaledH = (int) (src.rows() * scale);
+
+        // Centre the scaled image on the black canvas
+        int offsetX = (FRAME_WIDTH  - scaledW) / 2;
+        int offsetY = (FRAME_HEIGHT - scaledH) / 2;
+
+        Mat resized = new Mat();
+        Imgproc.resize(src, resized, new Size(scaledW, scaledH));
+
+        Rect roi = new Rect(offsetX, offsetY, scaledW, scaledH);
+        resized.copyTo(canvas.submat(roi));
+
+        resized.release();
+        return canvas;
+    }
+
+    /**
      * Writes transition frames between two clips.
-     * FADE: blends from frameA to frameB over 12 frames (~0.5s at 25fps).
-     * CROSS: same as FADE — cross-dissolve approximated by linear blend.
+     * FADE / CROSS: linear blend from frameA to frameB over ~0.5s (12 frames).
      */
     private void writeTransitionFrames(VideoWriter writer, Mat frameA, Mat frameB,
                                        String transition) {
-        int transFrames = 12; // ~0.5 seconds
+        int transFrames = 12;
 
         for (int t = 0; t < transFrames; t++) {
-            double alpha = (double) t / transFrames; // 0.0 → 1.0
+            double alpha = (double) t / transFrames;
             double beta  = 1.0 - alpha;
 
             Mat blended = new Mat();
-            org.opencv.core.Core.addWeighted(frameA, beta, frameB, alpha, 0, blended);
+            Core.addWeighted(frameA, beta, frameB, alpha, 0, blended);
             writer.write(blended);
             blended.release();
         }
