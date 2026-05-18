@@ -69,6 +69,7 @@ public class MainController implements Initializable {
     @FXML private HBox navLibrary;
     @FXML private HBox navFavorites;
     @FXML private HBox navAnnotated;
+    @FXML private HBox navEdit;
     @FXML private Label countLibrary;
     @FXML private Label countFavorites;
     @FXML private Label countAnnotated;
@@ -340,7 +341,8 @@ public class MainController implements Initializable {
             dipEditController.setLibraryPaths(new ArrayList<>(allPaths));
             dipEditController.selectTab(tabName);
             mainRoot.setCenter(dipEditRoot);
- 
+            setNavActive(navEdit);
+
         } catch (Exception e) {
             e.printStackTrace();
         }
@@ -423,7 +425,7 @@ public class MainController implements Initializable {
     }
 
     private void setNavActive(HBox active) {
-        for (HBox item : List.of(navLibrary, navFavorites, navAnnotated, navMosaic, navVideo, navShare)) {
+        for (HBox item : List.of(navLibrary, navFavorites, navAnnotated, navEdit, navMosaic, navVideo, navShare)) {
             item.getStyleClass().remove("nav-active");
         }
         active.getStyleClass().add("nav-active");
@@ -893,6 +895,7 @@ public class MainController implements Initializable {
                 && mainRoot.getCenter() == dipEditRoot) {
             restoreLibraryCenter();
         }
+        setNavActive(navLibrary);
     }
     // CW: change end
     

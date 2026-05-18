@@ -83,14 +83,6 @@
                                -fx-border-color:rgba(255,255,255,0.08);
                                -fx-border-radius:20; -fx-cursor:hand;"/>
 
-                <Button fx:id="tabObject" text="Object"
-                        onAction="#handleTabObject"
-                        style="-fx-font-size:11;
-                               -fx-background-color:rgba(255,255,255,0.06);
-                               -fx-text-fill:rgba(240,230,216,0.55);
-                               -fx-padding:6 14; -fx-background-radius:20;
-                               -fx-border-color:rgba(255,255,255,0.08);
-                               -fx-border-radius:20; -fx-cursor:hand;"/>
             </HBox>
 
             <Region HBox.hgrow="ALWAYS"/>

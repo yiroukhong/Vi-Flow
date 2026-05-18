@@ -56,7 +56,6 @@ public class DipEditController {
     @FXML private Button tabAesthetic;
     @FXML private Button tabGeometric;
     @FXML private Button tabExtraction;
-    @FXML private Button tabObject;
 
     // ── STYLES ────────────────────────────────────────────────────────────
 
@@ -181,7 +180,6 @@ public class DipEditController {
     @FXML private void handleTabAesthetic()   { loadTab("Aesthetic");   }
     @FXML private void handleTabGeometric()   { loadTab("Geometric");   }
     @FXML private void handleTabExtraction()  { loadTab("Extraction");  }
-    @FXML private void handleTabObject()      { loadTab("Object");      }
 
     // ── LOAD / SWAP TAB ───────────────────────────────────────────────────
 
@@ -310,7 +308,6 @@ public class DipEditController {
             case "Extraction":  return "DipExtract.fxml";
             case "Radiometric": return "DipRadiometric.fxml";
             case "Aesthetic":   return "DipAesthetic.fxml";
-            case "Object":      return null;
             default:            return null;
         }
     }
@@ -331,13 +328,11 @@ public class DipEditController {
         tabAesthetic.setStyle(STYLE_INACTIVE);
         tabGeometric.setStyle(STYLE_INACTIVE);
         tabExtraction.setStyle(STYLE_INACTIVE);
-        tabObject.setStyle(STYLE_INACTIVE);
         switch (tab) {
             case "Radiometric": tabRadiometric.setStyle(STYLE_ACTIVE); break;
             case "Aesthetic":   tabAesthetic.setStyle(STYLE_ACTIVE);   break;
             case "Geometric":   tabGeometric.setStyle(STYLE_ACTIVE);   break;
             case "Extraction":  tabExtraction.setStyle(STYLE_ACTIVE);  break;
-            case "Object":      tabObject.setStyle(STYLE_ACTIVE);      break;
         }
     }
 }
