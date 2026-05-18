@@ -308,7 +308,8 @@ public class MainController implements Initializable {
  
             if (pathToPass != null)
                 dipEditController.setInitialImage(pathToPass);
- 
+
+            dipEditController.setLibraryPaths(new ArrayList<>(allPaths));
             dipEditController.selectTab(tabName);
             mainRoot.setCenter(dipEditRoot);
  

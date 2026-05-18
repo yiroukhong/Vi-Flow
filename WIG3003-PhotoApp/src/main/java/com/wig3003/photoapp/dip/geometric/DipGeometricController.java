@@ -5,15 +5,21 @@ import com.wig3003.photoapp.util.ImageUtils;
 
 import javafx.application.Platform;
 import javafx.fxml.FXML;
+import javafx.geometry.Insets;
+import javafx.geometry.Pos;
+import javafx.scene.Scene;
 import javafx.scene.canvas.Canvas;
 import javafx.scene.canvas.GraphicsContext;
 import javafx.scene.control.*;
+import javafx.scene.image.Image;
 import javafx.scene.image.ImageView;
 import javafx.scene.input.KeyCode;
-import javafx.scene.layout.StackPane;
+import javafx.scene.layout.*;
 import javafx.scene.paint.Color;
 import javafx.stage.FileChooser;
+import javafx.stage.Modality;
 import javafx.stage.Stage;
+import javafx.stage.Window;
 
 import org.opencv.core.Mat;
 import org.opencv.imgcodecs.Imgcodecs;
@@ -21,8 +27,8 @@ import org.opencv.imgcodecs.Imgcodecs;
 import java.io.File;
 import java.nio.file.Path;
 import java.util.ArrayDeque;
+import java.util.ArrayList;
 import java.util.List;
-import java.util.Optional;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicLong;
 
@@ -507,6 +513,12 @@ public class DipGeometricController {
     // LOAD IMAGE
     // =========================================================
 
+    private java.util.List<String> libraryPaths = new java.util.ArrayList<>();
+
+    public void setLibraryPaths(java.util.List<String> paths) {
+        this.libraryPaths = paths != null ? paths : new java.util.ArrayList<>();
+    }
+
     @FXML
     private void loadImage() {
         FileChooser chooser = new FileChooser();
@@ -707,20 +719,138 @@ public class DipGeometricController {
 
     @FXML
     private void loadFromLibrary() {
-        List<String> paths = MetadataStore.getInstance().getLibraryPaths();
+        List<String> source = !libraryPaths.isEmpty()
+                ? libraryPaths
+                : MetadataStore.getInstance().getLibraryPaths();
 
-        if (paths.isEmpty()) {
+        if (source.isEmpty()) {
             showAlertDirect("Your Library is empty. Import a folder or save an image to Library first.");
             return;
         }
 
-        ChoiceDialog<String> dialog = new ChoiceDialog<>(paths.get(0), paths);
-        dialog.setTitle("Load from Library");
-        dialog.setHeaderText("Choose an image from Vi-Flow Library");
-        dialog.setContentText("Image:");
+        Window owner = (Stage) resultScrollPane.getScene().getWindow();
+        openLibraryPicker(source, owner);
+    }
 
-        Optional<String> selected = dialog.showAndWait();
-        selected.ifPresent(this::loadImageFromPath);
+    private void openLibraryPicker(List<String> source, Window owner) {
+        final String BASE = "-fx-background-color:#ECE4D3;-fx-background-radius:8;-fx-cursor:hand;";
+        final String SEL  = "-fx-background-color:#ECE4D3;-fx-background-radius:8;-fx-cursor:hand;"
+                + "-fx-border-color:#B0432B;-fx-border-width:2.5;-fx-border-radius:8;";
+
+        String[] selectedPath = {null};
+        StackPane[] selectedCard = {null};
+        Label[] selectedCheck = {null};
+
+        TilePane tilePane = new TilePane();
+        tilePane.setHgap(10);
+        tilePane.setVgap(10);
+        tilePane.setPrefColumns(5);
+        tilePane.setPadding(new Insets(16));
+        tilePane.setStyle("-fx-background-color:#FBF8F3;");
+
+        for (String path : source) {
+            StackPane card = new StackPane();
+            card.setMinSize(140, 100);
+            card.setMaxSize(140, 100);
+            card.setPrefSize(140, 100);
+            card.setStyle(BASE);
+
+            Thread t = new Thread(() -> {
+                String uri = new File(path).toURI().toString();
+                Image img = new Image(uri, 140, 100, false, true);
+                Platform.runLater(() -> {
+                    ImageView iv = new ImageView(img);
+                    iv.setFitWidth(140);
+                    iv.setFitHeight(100);
+                    iv.setPreserveRatio(false);
+                    iv.setSmooth(true);
+                    card.getChildren().add(0, iv);
+                });
+            });
+            t.setDaemon(true);
+            t.start();
+
+            Label check = new Label("✓");
+            check.setStyle("-fx-background-color:#B0432B;-fx-text-fill:white;"
+                    + "-fx-background-radius:999;-fx-font-size:11;-fx-font-weight:bold;"
+                    + "-fx-min-width:20;-fx-min-height:20;-fx-max-width:20;-fx-max-height:20;"
+                    + "-fx-alignment:center;");
+            StackPane.setAlignment(check, Pos.TOP_RIGHT);
+            StackPane.setMargin(check, new Insets(6, 6, 0, 0));
+            check.setVisible(false);
+            card.getChildren().add(check);
+
+            card.setOnMouseClicked(e -> {
+                if (selectedCard[0] != null) {
+                    selectedCard[0].setStyle(BASE);
+                    selectedCheck[0].setVisible(false);
+                }
+                selectedCard[0] = card;
+                selectedCheck[0] = check;
+                card.setStyle(SEL);
+                check.setVisible(true);
+                selectedPath[0] = path;
+            });
+
+            tilePane.getChildren().add(card);
+        }
+
+        ScrollPane scrollPane = new ScrollPane(tilePane);
+        scrollPane.setFitToWidth(true);
+        scrollPane.setStyle("-fx-background-color:#FBF8F3;-fx-background:#FBF8F3;"
+                + "-fx-border-color:transparent;-fx-focus-color:transparent;"
+                + "-fx-faint-focus-color:transparent;");
+
+        Label titleLbl = new Label("Choose from Library");
+        titleLbl.setStyle("-fx-font-size:20;-fx-font-family:'Georgia',serif;-fx-text-fill:#1F1B16;");
+        Label subtitleLbl = new Label("Click to select · " + source.size() + " available");
+        subtitleLbl.setStyle("-fx-font-size:12;-fx-text-fill:#6B6051;");
+        VBox header = new VBox(4, titleLbl, subtitleLbl);
+        header.setPadding(new Insets(16, 20, 14, 20));
+        header.setStyle("-fx-background-color:#FBF8F3;"
+                + "-fx-border-color:#ECE4D3;-fx-border-width:0 0 1 0;");
+
+        Button cancelBtn = new Button("Cancel");
+        cancelBtn.setStyle("-fx-background-color:white;-fx-text-fill:#1F1B16;"
+                + "-fx-border-color:#DDD2BC;-fx-border-radius:8;-fx-background-radius:8;"
+                + "-fx-padding:8 16;-fx-cursor:hand;-fx-font-size:13;");
+
+        Button selectBtn = new Button("Select");
+        selectBtn.setStyle("-fx-background-color:#1F1B16;-fx-text-fill:white;"
+                + "-fx-background-radius:8;-fx-padding:8 16;-fx-cursor:hand;-fx-font-size:13;");
+
+        Region spacer = new Region();
+        HBox.setHgrow(spacer, Priority.ALWAYS);
+
+        HBox footer = new HBox(8, spacer, cancelBtn, selectBtn);
+        footer.setPadding(new Insets(12, 20, 14, 20));
+        footer.setAlignment(Pos.CENTER_RIGHT);
+        footer.setStyle("-fx-background-color:#FBF8F3;"
+                + "-fx-border-color:#ECE4D3;-fx-border-width:1 0 0 0;");
+
+        BorderPane root = new BorderPane();
+        root.setTop(header);
+        root.setCenter(scrollPane);
+        root.setBottom(footer);
+        root.setStyle("-fx-background-color:#FBF8F3;");
+
+        Stage dialog = new Stage();
+        dialog.setTitle("Load from Library — Vi-Flow");
+        dialog.initModality(Modality.APPLICATION_MODAL);
+        dialog.initOwner(owner);
+        dialog.setWidth(owner.getWidth() - 120);
+        dialog.setHeight(owner.getHeight() - 80);
+        dialog.setX(owner.getX() + 60);
+        dialog.setY(owner.getY() + 40);
+
+        cancelBtn.setOnAction(e -> dialog.close());
+        selectBtn.setOnAction(e -> {
+            if (selectedPath[0] != null) loadImageFromPath(selectedPath[0]);
+            dialog.close();
+        });
+
+        dialog.setScene(new Scene(root));
+        dialog.show();
     }
 
     @FXML

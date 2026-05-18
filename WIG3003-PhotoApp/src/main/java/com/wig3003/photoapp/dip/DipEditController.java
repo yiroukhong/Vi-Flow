@@ -93,6 +93,9 @@ public class DipEditController {
     /** Image path passed from MainController. Null if none selected. */
     private String pendingImagePath = null;
 
+    /** Library paths passed from MainController. Empty until set. */
+    private java.util.List<String> libraryPaths = new java.util.ArrayList<>();
+
     // ── INITIALIZE ────────────────────────────────────────────────────────
 
     @FXML
@@ -110,6 +113,11 @@ public class DipEditController {
      */
     public void setInitialImage(String path) {
         this.pendingImagePath = path;
+    }
+
+    /** Called by MainController to pass the full library path list. */
+    public void setLibraryPaths(java.util.List<String> paths) {
+        this.libraryPaths = paths != null ? paths : new java.util.ArrayList<>();
     }
 
     /**
@@ -242,21 +250,27 @@ public class DipEditController {
         try {
             if (tab.equals("Geometric")
                     && ctrl instanceof DipGeometricController) {
-                ((DipGeometricController) ctrl)
-                        .loadImageFromPath(pendingImagePath);
+                DipGeometricController c = (DipGeometricController) ctrl;
+                c.setLibraryPaths(libraryPaths);
+                c.loadImageFromPath(pendingImagePath);
 
             } else if (tab.equals("Extraction")
                     && ctrl instanceof DipExtractController) {
-                ((DipExtractController) ctrl)
-                        .loadImageFromPath(pendingImagePath);
+                DipExtractController c = (DipExtractController) ctrl;
+                c.setLibraryPaths(libraryPaths);
+                c.loadImageFromPath(pendingImagePath);
+
             } else if (tab.equals("Radiometric")
                     && ctrl instanceof DipRadiometricController) {
-                ((DipRadiometricController) ctrl)
-                        .loadImageFromPath(pendingImagePath);
+                DipRadiometricController c = (DipRadiometricController) ctrl;
+                c.setLibraryPaths(libraryPaths);
+                c.loadImageFromPath(pendingImagePath);
+
             } else if (tab.equals("Aesthetic")
                     && ctrl instanceof DipAestheticController) {
-                ((DipAestheticController) ctrl)
-                        .loadImageFromPath(pendingImagePath);
+                DipAestheticController c = (DipAestheticController) ctrl;
+                c.setLibraryPaths(libraryPaths);
+                c.loadImageFromPath(pendingImagePath);
             }
         } catch (Exception e) {
             e.printStackTrace();
