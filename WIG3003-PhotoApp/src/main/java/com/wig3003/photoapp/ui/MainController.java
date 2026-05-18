@@ -858,10 +858,7 @@ public class MainController implements Initializable {
             }
         }
         updateCounts();
-        refreshGrid();
-        if (selectedIndex >= 0 && selectedIndex < displayPaths.size()) {
-            selectImage(selectedIndex);
-        }
+        updateThumbnailBadges(selectedIndex);
     }
 
     // ── Annotation side panel ─────────────────────────────────────────────────
