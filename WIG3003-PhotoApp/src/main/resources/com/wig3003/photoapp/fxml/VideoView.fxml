@@ -154,12 +154,13 @@
 
                 <!-- Filmstrip scroll -->
                 <ScrollPane hbarPolicy="AS_NEEDED" vbarPolicy="NEVER"
-                            fitToHeight="true"
+                            fitToHeight="false" prefHeight="120"
                             style="-fx-background-color:transparent;
                                    -fx-background:transparent;
                                    -fx-border-color:transparent;
                                    -fx-padding:0 16 12 16;">
                     <HBox fx:id="filmstripBox" spacing="8" alignment="CENTER_LEFT"
+                          minHeight="88" prefHeight="88"
                           style="-fx-padding:4 0 4 0;"/>
                 </ScrollPane>
 
