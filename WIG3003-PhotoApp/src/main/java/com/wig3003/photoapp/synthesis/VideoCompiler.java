@@ -81,25 +81,25 @@ public class VideoCompiler {
         // 2. Ensure output directory exists
         Files.createDirectories(Paths.get(outputDir));
 
-        // 3. Set up VideoWriter — XVID codec, AVI container, 1280x720, 25fps
+        // 3. Set up VideoWriter — mp4v codec, MP4 container, 1280x720, 25fps
         String filename  = "viflow_output_"
                 + new java.text.SimpleDateFormat("yyyyMMdd_HHmmss")
                         .format(new java.util.Date())
-                + ".avi";
+                + ".mp4";
         String outPath   = outputDir + File.separator + filename;
 
         int totalFrames = durationPerPhoto * fps;
         // Transition frames: 12 per boundary, written (N-1) times
         int transFramesTotal = transition.equals("NONE") ? 0 : (imagePaths.size() - 1) * 12;
         VideoWriter writer    = new VideoWriter();
-        int         fourcc    = VideoWriter.fourcc('X', 'V', 'I', 'D');
+        int         fourcc    = VideoWriter.fourcc('M', 'J', 'P', 'G');
         Size        frameSize = new Size(FRAME_WIDTH, FRAME_HEIGHT);
 
         writer.open(outPath, fourcc, (double) fps, frameSize, true);
 
         if (!writer.isOpened()) {
             throw new IOException("VideoWriter failed to open: " + outPath
-                    + " — check XVID codec is available on this machine");
+                    + " — check MJPEG codec is available on this machine");
         }
 
         // 4. Process each image

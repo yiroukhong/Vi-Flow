@@ -41,19 +41,7 @@ public class MediaPlayerController {
             throw new IllegalArgumentException("Video file not found: " + videoPath);
         }
 
-        // 2. AVI files (XVID) are not supported by JavaFX MediaPlayer on Windows.
-        //    Open them with the OS default player (VLC, Windows Media Player, etc.)
-        if (videoPath.toLowerCase().endsWith(".avi")) {
-            try {
-                java.awt.Desktop.getDesktop().open(f);
-            } catch (Exception ex) {
-                throw new RuntimeException(
-                    "Could not open video with system player: " + ex.getMessage(), ex);
-            }
-            return;
-        }
-
-        // 3. For MP4 files — use JavaFX MediaPlayer inside the app
+        // 3. Use JavaFX MediaPlayer inside the app (AVI/MJPEG supported natively)
         Media       media  = new Media(f.toURI().toString());
         MediaPlayer player = new MediaPlayer(media);
 
