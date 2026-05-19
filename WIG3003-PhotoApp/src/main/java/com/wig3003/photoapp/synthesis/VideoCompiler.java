@@ -9,6 +9,7 @@ import org.opencv.core.Size;
 import org.opencv.imgproc.Imgproc;
 import org.opencv.videoio.VideoWriter;
 
+import java.awt.AlphaComposite;
 import java.awt.Color;
 import java.awt.Font;
 import java.awt.FontMetrics;
@@ -23,28 +24,24 @@ import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.util.List;
 
+import javax.imageio.ImageIO;
+
 /**
  * Winnie — Multimedia Synthesis
  * Video Compiler — Contract §6
+ * AVI + MJPG, 1280x720, 25fps.
+ * Features: text overlay (plain or with background box), graphic image overlay.
  */
 public class VideoCompiler {
 
-    private static final int FRAME_WIDTH  = 1280;
-    private static final int FRAME_HEIGHT = 720;
+    private static final int    FRAME_WIDTH  = 1280;
+    private static final int    FRAME_HEIGHT = 720;
+    private static final double FPS          = 25.0;
 
-    /**
-     * Compiles a list of images into an AVI video with overlay text.
-     *
-     * @param imagePaths       Ordered list of image file paths (oldest-first, do NOT re-sort)
-     * @param durationPerPhoto Duration in seconds each image is shown (must be > 0)
-     * @param overlayText      Text drawn on every frame via Graphics2D
-     * @param outputDir        Directory to save the output AVI file
-     * @param transitionType   Transition between clips: "NONE", "FADE", or "CROSS"
-     * @param textPosition     Position of overlay text: "TOP", "CENTER", or "BOTTOM"
-     * @return Output file path of the saved AVI
-     * @throws IOException              If an image cannot be loaded or the video cannot be saved
-     * @throws IllegalArgumentException If any input parameter is invalid
-     */
+    // =========================================================
+    // PUBLIC API — backward-compatible overload (no graphic, no textStyle)
+    // =========================================================
+
     public String compileVideo(
             List<String> imagePaths,
             int durationPerPhoto,
@@ -54,125 +51,145 @@ public class VideoCompiler {
             String textPosition,
             int fps) throws IOException {
 
-        // 1. Validate inputs
-        if (imagePaths == null || imagePaths.isEmpty()) {
+        return compileVideo(imagePaths, durationPerPhoto, overlayText,
+                outputDir, transitionType, textPosition, fps,
+                null, null, "PLAIN");
+    }
+
+    // =========================================================
+    // PUBLIC API — full overload with graphic overlay + text style
+    // =========================================================
+
+    /**
+     * @param overlayImagePath Path to PNG/JPG to stamp on every frame (null = none)
+     * @param overlayImagePos  "TOP_LEFT" | "TOP_RIGHT" | "BOTTOM_LEFT" |
+     *                         "BOTTOM_RIGHT" | "CENTER"  (null = TOP_LEFT)
+     * @param textStyle        "PLAIN"    → white text directly on frame
+     *                         "WITH_BOX" → white text on semi-transparent black box
+     */
+    public String compileVideo(
+            List<String> imagePaths,
+            int durationPerPhoto,
+            String overlayText,
+            String outputDir,
+            String transitionType,
+            String textPosition,
+            int fps,
+            String overlayImagePath,
+            String overlayImagePos,
+            String textStyle) throws IOException {
+
+        // 1. Validate
+        if (imagePaths == null || imagePaths.isEmpty())
             throw new IllegalArgumentException("imagePaths must not be empty");
-        }
-        if (durationPerPhoto <= 0) {
+        if (durationPerPhoto <= 0)
             throw new IllegalArgumentException("durationPerPhoto must be > 0");
-        }
-        if (outputDir == null || outputDir.isBlank()) {
+        if (outputDir == null || outputDir.isBlank())
             throw new IllegalArgumentException("outputDir must not be null or blank");
-        }
 
-        // Normalise transitionType
         String transition = (transitionType == null) ? "NONE" : transitionType.toUpperCase();
-        if (!transition.equals("FADE") && !transition.equals("CROSS")) {
+        if (!transition.equals("FADE") && !transition.equals("CROSS"))
             transition = "NONE";
-        }
 
-        // Normalise textPosition — default to BOTTOM per contract §6
         String position = (textPosition == null) ? "BOTTOM" : textPosition.toUpperCase();
-        if (!position.equals("TOP") && !position.equals("CENTER")) {
+        if (!position.equals("TOP") && !position.equals("CENTER"))
             position = "BOTTOM";
+
+        String graphicPos = (overlayImagePos == null) ? "TOP_LEFT" : overlayImagePos.toUpperCase();
+
+        // Normalise textStyle — default PLAIN
+        boolean useBox = "WITH_BOX".equalsIgnoreCase(textStyle);
+
+        // 2. Pre-load graphic overlay once
+        BufferedImage graphicOverlay = null;
+        if (overlayImagePath != null && !overlayImagePath.isBlank()) {
+            File imgFile = new File(overlayImagePath);
+            if (imgFile.exists()) {
+                graphicOverlay = ImageIO.read(imgFile);
+                System.out.println("VideoCompiler: graphic overlay loaded → " + overlayImagePath);
+            } else {
+                System.err.println("VideoCompiler: overlay image not found → " + overlayImagePath);
+            }
         }
 
-        // 2. Ensure output directory exists
+        // 3. Ensure output directory exists
         Files.createDirectories(Paths.get(outputDir));
 
-        // 3. Set up VideoWriter — mp4v codec, MP4 container, 1280x720, 25fps
-        String filename  = "viflow_output_"
+        // 4. VideoWriter — MJPG, AVI, 1280x720
+        String filename = "viflow_output_"
                 + new java.text.SimpleDateFormat("yyyyMMdd_HHmmss")
                         .format(new java.util.Date())
-                + ".mp4";
-        String outPath   = outputDir + File.separator + filename;
-
-        int totalFrames = durationPerPhoto * fps;
-        VideoWriter writer = new VideoWriter();
-        int         fourcc    = VideoWriter.fourcc('m', 'p', '4', 'v');
+                + ".avi";
+        String      outPath   = outputDir + File.separator + filename;
+        int         fourcc    = VideoWriter.fourcc('M', 'J', 'P', 'G');
         Size        frameSize = new Size(FRAME_WIDTH, FRAME_HEIGHT);
+        VideoWriter writer    = new VideoWriter();
 
-        writer.open(outPath, fourcc, (double) fps, frameSize, true);
-
-        if (!writer.isOpened()) {
+        writer.open(outPath, fourcc, FPS, frameSize, true);
+        if (!writer.isOpened())
             throw new IOException("VideoWriter failed to open: " + outPath
-                    + " — check mp4v codec is available on this machine");
-        }
+                    + "\nMJPG codec unavailable.");
 
-        // 4. Process each image
-        int perPhotoFrames = totalFrames;
+        // 5. Process each image
+        int perPhotoFrames = (int) (durationPerPhoto * FPS);
 
         for (int i = 0; i < imagePaths.size(); i++) {
             String imgPath = imagePaths.get(i);
+            if (imgPath == null || imgPath.isBlank()) continue;
 
-            if (imgPath == null || imgPath.isBlank()) {
-                System.err.println("Warning: skipping null/blank image path");
-                continue;
-            }
-
-            // a. Load image
             Mat frame = ImageUtils.loadMatFromPath(imgPath);
-            if (frame == null || frame.empty()) {
-                System.err.println("Warning: could not load image, skipping: " + imgPath);
-                continue;
-            }
+            if (frame == null || frame.empty()) continue;
 
-            // b. Letterbox resize — preserves aspect ratio, fills remainder with black
-            //    Fixes portrait images being stretched into 1280x720 landscape frame
             Mat letterboxed = letterboxResize(frame);
 
-            // c. Convert Mat → custom BufferedImage (Yirou's util)
             com.wig3003.photoapp.util.BufferedImage customBi =
                     ImageUtils.matToBufferedImage(letterboxed);
 
-            // d. Bridge to standard java.awt.image.BufferedImage for Graphics2D
             BufferedImage javaBi = new BufferedImage(
-                    customBi.getWidth(),
-                    customBi.getHeight(),
+                    customBi.getWidth(), customBi.getHeight(),
                     BufferedImage.TYPE_3BYTE_BGR);
-
             byte[] srcData  = customBi.getData();
             byte[] destData = ((DataBufferByte) javaBi.getRaster().getDataBuffer()).getData();
             System.arraycopy(srcData, 0, destData, 0, srcData.length);
 
-            // e. Draw overlay text via Graphics2D at the specified position
-            if (overlayText != null && !overlayText.isBlank()) {
-                Graphics2D g2d = javaBi.createGraphics();
-                g2d.setRenderingHint(
-                        RenderingHints.KEY_ANTIALIASING,
-                        RenderingHints.VALUE_ANTIALIAS_ON);
-                g2d.setFont(new Font("Arial", Font.BOLD, 32));
-                g2d.setColor(Color.WHITE);
+            Graphics2D g2d = javaBi.createGraphics();
+            g2d.setRenderingHint(RenderingHints.KEY_ANTIALIASING,
+                    RenderingHints.VALUE_ANTIALIAS_ON);
+            g2d.setRenderingHint(RenderingHints.KEY_RENDERING,
+                    RenderingHints.VALUE_RENDER_QUALITY);
 
-                FontMetrics fm    = g2d.getFontMetrics();
-                int         textX = (FRAME_WIDTH - fm.stringWidth(overlayText)) / 2;
-                int         textY = computeTextY(position, fm);
-                g2d.drawString(overlayText, textX, textY);
-                g2d.dispose();
+            // Draw graphic image overlay
+            if (graphicOverlay != null) {
+                drawGraphicOverlay(g2d, graphicOverlay, graphicPos);
             }
 
-            // f. Bridge back: standard BufferedImage → custom BufferedImage
-            byte[] modifiedData = ((DataBufferByte) javaBi.getRaster().getDataBuffer()).getData();
+            // Draw text — plain OR with background box depending on user selection
+            if (overlayText != null && !overlayText.isBlank()) {
+                if (useBox) {
+                    drawTextWithBackground(g2d, overlayText, position);  // WITH BOX
+                } else {
+                    drawTextPlain(g2d, overlayText, position);           // PLAIN
+                }
+            }
+
+            g2d.dispose();
+
+            byte[] modifiedData =
+                    ((DataBufferByte) javaBi.getRaster().getDataBuffer()).getData();
             com.wig3003.photoapp.util.BufferedImage modifiedCustomBi =
                     new com.wig3003.photoapp.util.BufferedImage(
-                            javaBi.getWidth(),
-                            javaBi.getHeight(),
-                            customBi.getChannels(),
-                            modifiedData);
+                            javaBi.getWidth(), javaBi.getHeight(),
+                            customBi.getChannels(), modifiedData);
 
-            // g. Convert back to Mat
             Mat overlaidFrame = ImageUtils.bufferedImageToMat(modifiedCustomBi);
 
-            // h. Write main clip frames
             for (int f = 0; f < perPhotoFrames; f++) {
                 writer.write(overlaidFrame);
             }
 
-            // i. Write transition frames between clips (not after last clip)
             if (!transition.equals("NONE") && i < imagePaths.size() - 1) {
                 String nextPath  = imagePaths.get(i + 1);
                 Mat    nextFrame = ImageUtils.loadMatFromPath(nextPath);
-
                 if (nextFrame != null && !nextFrame.empty()) {
                     Mat nextLetterboxed = letterboxResize(nextFrame);
                     writeTransitionFrames(writer, overlaidFrame, nextLetterboxed, transition);
@@ -186,72 +203,143 @@ public class VideoCompiler {
             frame.release();
         }
 
-        // 5. Release writer and return path
         writer.release();
-
         return outPath;
     }
 
-    // -------------------------------------------------------------------------
-    // Private helpers
-    // -------------------------------------------------------------------------
+    // =========================================================
+    // TEXT — PLAIN (no background box)
+    // =========================================================
 
     /**
-     * Computes the Y coordinate for overlay text based on position.
-     * TOP    → near top of frame (font height + 40px margin)
-     * CENTER → vertical centre of frame
-     * BOTTOM → near bottom of frame (frame height - 40px margin)
+     * Draws white text directly on the frame without any background.
+     * Original style per report §3.2.2.
      */
+    private void drawTextPlain(Graphics2D g2d, String text, String position) {
+        g2d.setFont(new Font("Arial", Font.BOLD, 32));
+        FontMetrics fm = g2d.getFontMetrics();
+        int textX = (FRAME_WIDTH - fm.stringWidth(text)) / 2;
+        int textY = computeTextY(position, fm);
+
+        // Thin dark shadow for readability on bright backgrounds
+        g2d.setColor(new Color(0, 0, 0, 160));
+        g2d.drawString(text, textX + 2, textY + 2);
+
+        // White text on top
+        g2d.setColor(Color.WHITE);
+        g2d.drawString(text, textX, textY);
+    }
+
+    // =========================================================
+    // TEXT — WITH BACKGROUND BOX
+    // =========================================================
+
+    /**
+     * Draws text with a semi-transparent rounded black box behind it.
+     * Improves readability against any background image.
+     */
+    private void drawTextWithBackground(Graphics2D g2d, String text, String position) {
+        g2d.setFont(new Font("Arial", Font.BOLD, 32));
+        FontMetrics fm = g2d.getFontMetrics();
+
+        int textW  = fm.stringWidth(text);
+        int textH  = fm.getAscent();
+        int padX   = 20;
+        int padY   = 12;
+        int boxW   = textW + padX * 2;
+        int boxH   = textH + padY * 2;
+        int textX  = (FRAME_WIDTH - textW) / 2;
+        int textY  = computeTextY(position, fm);
+        int boxX   = textX - padX;
+        int boxY   = textY - textH - padY;
+
+        // Semi-transparent black rounded box
+        g2d.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, 0.55f));
+        g2d.setColor(Color.BLACK);
+        g2d.fillRoundRect(boxX, boxY, boxW, boxH, 16, 16);
+
+        // White text fully opaque on top of box
+        g2d.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, 1.0f));
+        g2d.setColor(Color.WHITE);
+        g2d.drawString(text, textX, textY);
+    }
+
+    // =========================================================
+    // GRAPHIC IMAGE OVERLAY
+    // =========================================================
+
+    private void drawGraphicOverlay(Graphics2D g2d, BufferedImage graphic, String position) {
+        int maxW  = 200;
+        int maxH  = 100;
+        double scaleW = (double) maxW / graphic.getWidth();
+        double scaleH = (double) maxH / graphic.getHeight();
+        double scale  = Math.min(scaleW, scaleH);
+        int drawW = (int) (graphic.getWidth()  * scale);
+        int drawH = (int) (graphic.getHeight() * scale);
+        int margin = 16;
+        int drawX, drawY;
+
+        switch (position) {
+            case "TOP_RIGHT":
+                drawX = FRAME_WIDTH  - drawW - margin;
+                drawY = margin;
+                break;
+            case "BOTTOM_LEFT":
+                drawX = margin;
+                drawY = FRAME_HEIGHT - drawH - margin;
+                break;
+            case "BOTTOM_RIGHT":
+                drawX = FRAME_WIDTH  - drawW - margin;
+                drawY = FRAME_HEIGHT - drawH - margin;
+                break;
+            case "CENTER":
+                drawX = (FRAME_WIDTH  - drawW) / 2;
+                drawY = (FRAME_HEIGHT - drawH) / 2;
+                break;
+            case "TOP_LEFT":
+            default:
+                drawX = margin;
+                drawY = margin;
+                break;
+        }
+
+        g2d.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, 0.80f));
+        g2d.drawImage(graphic, drawX, drawY, drawW, drawH, null);
+        g2d.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, 1.0f));
+    }
+
+    // =========================================================
+    // PRIVATE HELPERS
+    // =========================================================
+
     private int computeTextY(String position, FontMetrics fm) {
         switch (position) {
-            case "TOP":
-                return fm.getAscent() + 40;
-            case "CENTER":
-                return (FRAME_HEIGHT + fm.getAscent() - fm.getDescent()) / 2;
+            case "TOP":    return fm.getAscent() + 40;
+            case "CENTER": return (FRAME_HEIGHT + fm.getAscent() - fm.getDescent()) / 2;
             case "BOTTOM":
-            default:
-                return FRAME_HEIGHT - 40;
+            default:       return FRAME_HEIGHT - 40;
         }
     }
 
-    /**
-     * Resizes a Mat into a 1280x720 frame while preserving aspect ratio.
-     * Empty space is filled with black (letterbox for landscape,
-     * pillarbox for portrait images).
-     */
     private Mat letterboxResize(Mat src) {
-        Mat canvas = Mat.zeros(FRAME_HEIGHT, FRAME_WIDTH, src.type());
-
-        double scaleW = (double) FRAME_WIDTH  / src.cols();
-        double scaleH = (double) FRAME_HEIGHT / src.rows();
-        double scale  = Math.min(scaleW, scaleH); // fit inside, no cropping
-
-        int scaledW = (int) (src.cols() * scale);
-        int scaledH = (int) (src.rows() * scale);
-
-        // Centre the scaled image on the black canvas
-        int offsetX = (FRAME_WIDTH  - scaledW) / 2;
-        int offsetY = (FRAME_HEIGHT - scaledH) / 2;
-
-        Mat resized = new Mat();
+        Mat    canvas  = Mat.zeros(FRAME_HEIGHT, FRAME_WIDTH, src.type());
+        double scaleW  = (double) FRAME_WIDTH  / src.cols();
+        double scaleH  = (double) FRAME_HEIGHT / src.rows();
+        double scale   = Math.min(scaleW, scaleH);
+        int    scaledW = (int) (src.cols() * scale);
+        int    scaledH = (int) (src.rows() * scale);
+        int    offsetX = (FRAME_WIDTH  - scaledW) / 2;
+        int    offsetY = (FRAME_HEIGHT - scaledH) / 2;
+        Mat    resized = new Mat();
         Imgproc.resize(src, resized, new Size(scaledW, scaledH));
-
-        Rect roi = new Rect(offsetX, offsetY, scaledW, scaledH);
-        resized.copyTo(canvas.submat(roi));
-
+        resized.copyTo(canvas.submat(new Rect(offsetX, offsetY, scaledW, scaledH)));
         resized.release();
         return canvas;
     }
 
-    /**
-     * Writes transition frames between two clips.
-     * FADE: A → black → B (two-phase, 6 frames each).
-     * CROSS: direct linear dissolve A → B (12 frames).
-     */
     private void writeTransitionFrames(VideoWriter writer, Mat frameA, Mat frameB,
                                        String transition) {
         int transFrames = 12;
-
         if ("FADE".equals(transition)) {
             int half  = transFrames / 2;
             Mat black = Mat.zeros(frameA.size(), frameA.type());
@@ -271,12 +359,10 @@ public class VideoCompiler {
             }
             black.release();
         } else {
-            // CROSS: direct linear dissolve from A to B
             for (int t = 0; t < transFrames; t++) {
                 double alpha = (double) t / (transFrames - 1);
-                double beta  = 1.0 - alpha;
                 Mat blended  = new Mat();
-                Core.addWeighted(frameA, beta, frameB, alpha, 0, blended);
+                Core.addWeighted(frameA, 1.0 - alpha, frameB, alpha, 0, blended);
                 writer.write(blended);
                 blended.release();
             }

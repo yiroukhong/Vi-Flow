@@ -1,5 +1,6 @@
 package com.wig3003.photoapp.synthesis;
 
+import com.wig3003.photoapp.ui.MainController;
 import com.wig3003.photoapp.util.FavouritesManager;
 
 import javafx.animation.KeyFrame;
@@ -71,9 +72,9 @@ public class VideoController {
     // FXML — FILMSTRIP
     // =========================================================
 
-    @FXML private Label       stripInfoLabel;
-    @FXML private HBox        filmstripBox;
-    @FXML private ScrollPane  filmstripScroll;
+    @FXML private Label      stripInfoLabel;
+    @FXML private HBox       filmstripBox;
+    @FXML private ScrollPane filmstripScroll;
 
     // =========================================================
     // FXML — RIGHT PANEL
@@ -86,6 +87,8 @@ public class VideoController {
     @FXML private ToggleButton transFade;
     @FXML private ToggleButton transCross;
     @FXML private TextArea     overlayTextArea;
+    @FXML private ToggleButton textStylePlain;   // ← NEW
+    @FXML private ToggleButton textStyleBox;     // ← NEW
     @FXML private ToggleButton posTop;
     @FXML private ToggleButton posCenter;
     @FXML private ToggleButton posBottom;
@@ -95,6 +98,17 @@ public class VideoController {
     @FXML private ToggleButton fps30;
     @FXML private ToggleButton fps60;
     @FXML private Button       compileBtn;
+    @FXML private Button       compileFavBtn;
+
+    // ── Graphic overlay controls ──────────────────────────────
+    @FXML private Label        overlayImageLabel;
+    @FXML private Button       pickOverlayBtn;
+    @FXML private Button       clearOverlayBtn;
+    @FXML private ToggleButton gposTopLeft;
+    @FXML private ToggleButton gposTopRight;
+    @FXML private ToggleButton gposBotLeft;
+    @FXML private ToggleButton gposBotRight;
+    @FXML private ToggleButton gposCenter;
 
     // =========================================================
     // STATE
@@ -108,8 +122,8 @@ public class VideoController {
     private Timeline                  previewTimeline   = null;
     private int                       previewIndex      = 0;
     private final Map<Integer,String> clipOverlays      = new HashMap<>();
-    private javafx.scene.media.MediaPlayer embeddedPlayer    = null;
-    private javafx.scene.media.MediaView   embeddedMediaView = null;
+    private MainController            mainController;
+    private String                    overlayImagePath  = null;
 
     // =========================================================
     // INITIALIZE
@@ -147,18 +161,65 @@ public class VideoController {
     }
 
     // =========================================================
+    // GRAPHIC OVERLAY HANDLERS
+    // =========================================================
+
+    @FXML
+    private void handlePickOverlayImage() {
+        FileChooser chooser = new FileChooser();
+        chooser.setTitle("Select Graphic Overlay Image");
+        chooser.getExtensionFilters().add(
+                new FileChooser.ExtensionFilter("Image files",
+                        "*.png", "*.jpg", "*.jpeg", "*.bmp", "*.gif"));
+        Stage stage = getStage();
+        if (stage == null) return;
+        File selected = chooser.showOpenDialog(stage);
+        if (selected == null) return;
+        overlayImagePath = selected.getAbsolutePath();
+        overlayImageLabel.setText(selected.getName());
+        overlayImageLabel.setStyle(
+                "-fx-font-size:10;-fx-text-fill:#1F1B16;-fx-max-width:160;-fx-wrap-text:true;");
+    }
+
+    @FXML
+    private void handleClearOverlayImage() {
+        overlayImagePath = null;
+        overlayImageLabel.setText("No image selected");
+        overlayImageLabel.setStyle(
+                "-fx-font-size:10;-fx-text-fill:#9C907D;-fx-max-width:160;-fx-wrap-text:true;");
+    }
+
+    private String getGraphicPosition() {
+        if (gposTopRight != null && gposTopRight.isSelected()) return "TOP_RIGHT";
+        if (gposBotLeft  != null && gposBotLeft.isSelected())  return "BOTTOM_LEFT";
+        if (gposBotRight != null && gposBotRight.isSelected()) return "BOTTOM_RIGHT";
+        if (gposCenter   != null && gposCenter.isSelected())   return "CENTER";
+        return "TOP_LEFT";
+    }
+
+    // =========================================================
+    // TEXT STYLE HELPER — NEW
+    // =========================================================
+
+    /**
+     * Reads the text style toggle.
+     * Returns "WITH_BOX" if the user selected "With Box", else "PLAIN".
+     */
+    private String getTextStyle() {
+        if (textStyleBox != null && textStyleBox.isSelected()) return "WITH_BOX";
+        return "PLAIN";
+    }
+
+    // =========================================================
     // LOAD CLIPS
     // =========================================================
 
     private void loadClipsFromFavourites() {
-        List<String> paths;
-        paths = FavouritesManager.getFavourites();
+        List<String> paths = FavouritesManager.getFavourites();
         clipPaths = new ArrayList<>(paths);
         rebuildFilmstrip();
         updateStripInfo();
-        if (!clipPaths.isEmpty()) {
-            handleClipSelected(0);
-        }
+        if (!clipPaths.isEmpty()) handleClipSelected(0);
     }
 
     private void rebuildFilmstrip() {
@@ -174,24 +235,18 @@ public class VideoController {
         card.setMinSize(120, 80);
         card.setMaxSize(120, 80);
         card.setPrefSize(120, 80);
-
         boolean selected = (index == selectedClipIndex);
         card.setStyle(
-                "-fx-background-color:#ECE4D3;"
-                + "-fx-background-radius:6;"
-                + "-fx-cursor:hand;"
+                "-fx-background-color:#ECE4D3;-fx-background-radius:6;-fx-cursor:hand;"
                 + (selected ? "-fx-border-color:#B0432B;-fx-border-width:2;-fx-border-radius:6;" : "")
         );
-
         Thread t = new Thread(() -> {
             String uri = new File(path).toURI().toString();
             Image img = new Image(uri, 120, 80, false, true);
             Platform.runLater(() -> {
                 ImageView iv = new ImageView(img);
-                iv.setFitWidth(120);
-                iv.setFitHeight(80);
-                iv.setPreserveRatio(false);
-                iv.setSmooth(true);
+                iv.setFitWidth(120); iv.setFitHeight(80);
+                iv.setPreserveRatio(false); iv.setSmooth(true);
                 card.getChildren().add(0, iv);
             });
         });
@@ -199,45 +254,27 @@ public class VideoController {
         t.start();
 
         StackPane dot = new StackPane();
-        dot.setMinSize(8, 8);
-        dot.setMaxSize(8, 8);
-        dot.setPrefSize(8, 8);
-        dot.setStyle("-fx-background-color:#C8A93F; -fx-background-radius:999;");
+        dot.setMinSize(8, 8); dot.setMaxSize(8, 8); dot.setPrefSize(8, 8);
+        dot.setStyle("-fx-background-color:#C8A93F;-fx-background-radius:999;");
         StackPane.setAlignment(dot, Pos.TOP_RIGHT);
         StackPane.setMargin(dot, new Insets(4, 4, 0, 0));
         boolean hasOverlay = !clipOverlays.getOrDefault(index, "").isEmpty();
-        dot.setVisible(hasOverlay);
-        dot.setManaged(hasOverlay);
+        dot.setVisible(hasOverlay); dot.setManaged(hasOverlay);
         card.getChildren().add(dot);
-
         card.setOnMouseClicked(e -> handleClipSelected(index));
         return card;
     }
 
     private StackPane buildAddCard() {
         StackPane card = new StackPane();
-        card.setMinSize(120, 80);
-        card.setMaxSize(120, 80);
-        card.setPrefSize(120, 80);
-        card.setStyle(
-                "-fx-background-color:transparent;"
-                + "-fx-border-color:#DDD2BC;"
-                + "-fx-border-width:1.5;"
-                + "-fx-border-style:dashed;"
-                + "-fx-border-radius:6;"
-                + "-fx-cursor:hand;"
-        );
-
+        card.setMinSize(120, 80); card.setMaxSize(120, 80); card.setPrefSize(120, 80);
+        card.setStyle("-fx-background-color:transparent;-fx-border-color:#DDD2BC;"
+                + "-fx-border-width:1.5;-fx-border-style:dashed;-fx-border-radius:6;-fx-cursor:hand;");
         Label plus = new Label("+");
-        plus.setStyle("-fx-font-size:24; -fx-text-fill:#9C907D;");
+        plus.setStyle("-fx-font-size:24;-fx-text-fill:#9C907D;");
         card.getChildren().add(plus);
         card.setOnMouseClicked(e -> {
-            try {
-                handleAddFromFavorites();
-            } catch (IOException e1) {
-                // TODO Auto-generated catch block
-                e1.printStackTrace();
-            }
+            try { handleAddFromFavorites(); } catch (IOException ex) { ex.printStackTrace(); }
         });
         return card;
     }
@@ -245,10 +282,9 @@ public class VideoController {
     private void updateStripInfo() {
         int n         = clipPaths.size();
         int totalSecs = (int) (n * durationSlider.getValue());
-        int m         = totalSecs / 60;
-        int s         = totalSecs % 60;
         stripInfoLabel.setText(String.format(
-                "Strip · %d Clip%s · %d:%02d", n, n == 1 ? "" : "s", m, s));
+                "Strip · %d Clip%s · %d:%02d",
+                n, n == 1 ? "" : "s", totalSecs / 60, totalSecs % 60));
     }
 
     // =========================================================
@@ -256,19 +292,15 @@ public class VideoController {
     // =========================================================
 
     private void handleClipSelected(int index) {
-        if (selectedClipIndex >= 0 && overlayTextArea != null) {
+        if (selectedClipIndex >= 0 && overlayTextArea != null)
             clipOverlays.put(selectedClipIndex, overlayTextArea.getText());
-        }
-
         selectedClipIndex = index;
         clipIndexLabel.setText(String.format("CLIP · #%02d", index + 1));
         overlayTextArea.setText(clipOverlays.getOrDefault(index, ""));
-
         if (index >= 0 && index < clipPaths.size()) {
             final String path = clipPaths.get(index);
             Thread t = new Thread(() -> {
-                String uri = new File(path).toURI().toString();
-                Image img  = new Image(uri, 0, 0, true, true);
+                Image img = new Image(new File(path).toURI().toString(), 0, 0, true, true);
                 Platform.runLater(() -> {
                     previewView.setImage(img);
                     double fw = canvasArea.getWidth() - 48;
@@ -282,7 +314,6 @@ public class VideoController {
             t.setDaemon(true);
             t.start();
         }
-
         rebuildFilmstrip();
     }
 
@@ -294,16 +325,10 @@ public class VideoController {
         Stage owner = getStage();
         if (owner == null) return;
 
-        List<String> source;
-        if (!libraryPaths.isEmpty()) {
-            source = libraryPaths;
-        } else {
-            source = FavouritesManager.getFavourites();
-        }
-
+        List<String> source = !libraryPaths.isEmpty()
+                ? libraryPaths : FavouritesManager.getFavourites();
         List<String> available = source.stream()
-                .filter(p -> !clipPaths.contains(p))
-                .collect(Collectors.toList());
+                .filter(p -> !clipPaths.contains(p)).collect(Collectors.toList());
 
         if (available.isEmpty()) {
             showInfo("No photos available.", "All library photos are already in the strip.");
@@ -311,70 +336,49 @@ public class VideoController {
         }
 
         Set<String> selectedPaths = new HashSet<>();
-
         TilePane tilePane = new TilePane();
-        tilePane.setHgap(10);
-        tilePane.setVgap(10);
-        tilePane.setPrefColumns(5);
-        tilePane.setPadding(new Insets(16));
+        tilePane.setHgap(10); tilePane.setVgap(10);
+        tilePane.setPrefColumns(5); tilePane.setPadding(new Insets(16));
         tilePane.setStyle("-fx-background-color:#FBF8F3;");
 
         for (String path : available) {
             final String BASE = "-fx-background-color:#ECE4D3;-fx-background-radius:8;-fx-cursor:hand;";
-            final String SEL  = "-fx-background-color:#ECE4D3;-fx-background-radius:8;-fx-cursor:hand;"
-                    + "-fx-border-color:#B0432B;-fx-border-width:2.5;-fx-border-radius:8;";
-
+            final String SEL  = BASE + "-fx-border-color:#B0432B;-fx-border-width:2.5;-fx-border-radius:8;";
             StackPane card = new StackPane();
-            card.setMinSize(140, 100);
-            card.setMaxSize(140, 100);
-            card.setPrefSize(140, 100);
+            card.setMinSize(140, 100); card.setMaxSize(140, 100); card.setPrefSize(140, 100);
             card.setStyle(BASE);
-
             Thread t = new Thread(() -> {
-                String uri = new File(path).toURI().toString();
-                Image img = new Image(uri, 140, 100, false, true);
+                Image img = new Image(new File(path).toURI().toString(), 140, 100, false, true);
                 Platform.runLater(() -> {
                     ImageView iv = new ImageView(img);
-                    iv.setFitWidth(140);
-                    iv.setFitHeight(100);
-                    iv.setPreserveRatio(false);
-                    iv.setSmooth(true);
+                    iv.setFitWidth(140); iv.setFitHeight(100);
+                    iv.setPreserveRatio(false); iv.setSmooth(true);
                     card.getChildren().add(0, iv);
                 });
             });
-            t.setDaemon(true);
-            t.start();
-
+            t.setDaemon(true); t.start();
             Label check = new Label("✓");
             check.setStyle("-fx-background-color:#B0432B;-fx-text-fill:white;"
                     + "-fx-background-radius:999;-fx-font-size:11;-fx-font-weight:bold;"
-                    + "-fx-min-width:20;-fx-min-height:20;-fx-max-width:20;-fx-max-height:20;"
-                    + "-fx-alignment:center;");
+                    + "-fx-min-width:20;-fx-min-height:20;-fx-max-width:20;-fx-max-height:20;-fx-alignment:center;");
             StackPane.setAlignment(check, Pos.TOP_RIGHT);
             StackPane.setMargin(check, new Insets(6, 6, 0, 0));
             check.setVisible(false);
             card.getChildren().add(check);
-
             card.setOnMouseClicked(e -> {
                 if (selectedPaths.contains(path)) {
-                    selectedPaths.remove(path);
-                    card.setStyle(BASE);
-                    check.setVisible(false);
+                    selectedPaths.remove(path); card.setStyle(BASE); check.setVisible(false);
                 } else {
-                    selectedPaths.add(path);
-                    card.setStyle(SEL);
-                    check.setVisible(true);
+                    selectedPaths.add(path); card.setStyle(SEL); check.setVisible(true);
                 }
             });
-
             tilePane.getChildren().add(card);
         }
 
         ScrollPane scrollPane = new ScrollPane(tilePane);
         scrollPane.setFitToWidth(true);
         scrollPane.setStyle("-fx-background-color:#FBF8F3;-fx-background:#FBF8F3;"
-                + "-fx-border-color:transparent;-fx-focus-color:transparent;"
-                + "-fx-faint-focus-color:transparent;");
+                + "-fx-border-color:transparent;-fx-focus-color:transparent;-fx-faint-focus-color:transparent;");
 
         Label titleLbl = new Label("Choose Photos");
         titleLbl.setStyle("-fx-font-size:20;-fx-font-family:'Georgia',serif;-fx-text-fill:#1F1B16;");
@@ -382,31 +386,24 @@ public class VideoController {
         subtitleLbl.setStyle("-fx-font-size:12;-fx-text-fill:#6B6051;");
         VBox header = new VBox(4, titleLbl, subtitleLbl);
         header.setPadding(new Insets(16, 20, 14, 20));
-        header.setStyle("-fx-background-color:#FBF8F3;"
-                + "-fx-border-color:#ECE4D3;-fx-border-width:0 0 1 0;");
+        header.setStyle("-fx-background-color:#FBF8F3;-fx-border-color:#ECE4D3;-fx-border-width:0 0 1 0;");
 
         Button cancelBtn = new Button("Cancel");
         cancelBtn.setStyle("-fx-background-color:white;-fx-text-fill:#1F1B16;"
                 + "-fx-border-color:#DDD2BC;-fx-border-radius:8;-fx-background-radius:8;"
                 + "-fx-padding:8 16;-fx-cursor:hand;-fx-font-size:13;");
-
         Button addBtn = new Button("Add Selected");
         addBtn.setStyle("-fx-background-color:#1F1B16;-fx-text-fill:white;"
                 + "-fx-background-radius:8;-fx-padding:8 16;-fx-cursor:hand;-fx-font-size:13;");
-
         Region spacer = new Region();
         HBox.setHgrow(spacer, Priority.ALWAYS);
-
         HBox footer = new HBox(8, spacer, cancelBtn, addBtn);
         footer.setPadding(new Insets(12, 20, 14, 20));
         footer.setAlignment(Pos.CENTER_RIGHT);
-        footer.setStyle("-fx-background-color:#FBF8F3;"
-                + "-fx-border-color:#ECE4D3;-fx-border-width:1 0 0 0;");
+        footer.setStyle("-fx-background-color:#FBF8F3;-fx-border-color:#ECE4D3;-fx-border-width:1 0 0 0;");
 
         BorderPane root = new BorderPane();
-        root.setTop(header);
-        root.setCenter(scrollPane);
-        root.setBottom(footer);
+        root.setTop(header); root.setCenter(scrollPane); root.setBottom(footer);
         root.setStyle("-fx-background-color:#FBF8F3;");
 
         Stage dialog = new Stage();
@@ -417,35 +414,24 @@ public class VideoController {
         dialog.setHeight(owner.getHeight() - 80);
         dialog.setX(owner.getX() + 60);
         dialog.setY(owner.getY() + 40);
-
         cancelBtn.setOnAction(e -> dialog.close());
-
         addBtn.setOnAction(e -> {
             if (!selectedPaths.isEmpty()) {
-                for (String p : available) {
-                    if (selectedPaths.contains(p)) {
-                        clipPaths.add(p);
-                    }
-                }
-                rebuildFilmstrip();
-                updateStripInfo();
+                for (String p : available) if (selectedPaths.contains(p)) clipPaths.add(p);
+                rebuildFilmstrip(); updateStripInfo();
                 handleClipSelected(clipPaths.size() - 1);
             }
             dialog.close();
         });
-
         dialog.setScene(new Scene(root));
         dialog.show();
     }
 
     // =========================================================
-    // TOOLBAR / STRIP ACTIONS
+    // TOOLBAR
     // =========================================================
 
-    @FXML
-    private void handleAddText() {
-        overlayTextArea.requestFocus();
-    }
+    @FXML private void handleAddText() { overlayTextArea.requestFocus(); }
 
     // =========================================================
     // PLAYBACK
@@ -466,17 +452,11 @@ public class VideoController {
     @FXML
     private void handlePlayPause() {
         if (clipPaths.isEmpty()) return;
-
-        if (previewTimeline != null
-                && previewTimeline.getStatus() == Timeline.Status.RUNNING) {
-            previewTimeline.pause();
-            playPauseBtn.setText("▶");
-            return;
+        if (previewTimeline != null && previewTimeline.getStatus() == Timeline.Status.RUNNING) {
+            previewTimeline.pause(); playPauseBtn.setText("▶"); return;
         }
-
         previewIndex = selectedClipIndex < 0 ? 0 : selectedClipIndex;
         double secPerClip = durationSlider.getValue();
-
         previewTimeline = new Timeline(new KeyFrame(Duration.seconds(secPerClip), e -> {
             previewIndex = (previewIndex + 1) % clipPaths.size();
             String uri = new File(clipPaths.get(previewIndex)).toURI().toString();
@@ -485,10 +465,8 @@ public class VideoController {
             double fh = canvasArea.getHeight() - 48;
             if (fw > 0) previewView.setFitWidth(fw);
             if (fh > 0) previewView.setFitHeight(fh);
-            placeholderLabel.setVisible(false);
-            placeholderLabel.setManaged(false);
+            placeholderLabel.setVisible(false); placeholderLabel.setManaged(false);
             clipIndexLabel.setText(String.format("CLIP · #%02d", previewIndex + 1));
-
             int totalSecs  = (int) (clipPaths.size() * secPerClip);
             int elapsedSec = (int) (previewIndex * secPerClip);
             playbackTimeLabel.setText(formatTime(elapsedSec) + " / " + formatTime(totalSecs));
@@ -500,60 +478,94 @@ public class VideoController {
     }
 
     // =========================================================
-    // COMPILE — auto-launches MediaPlayer after compile
+    // COMPILE
     // =========================================================
 
     @FXML
     private void handleCompile() {
         if (clipPaths.isEmpty()) {
-            showError("No clips.", "Add photos from Favorites to build your video.");
+            showError("No clips.", "Add photos to the filmstrip or use 'Compile from Favourites'.");
             return;
         }
+        runCompile(new ArrayList<>(clipPaths));
+    }
 
-        int    durationPerPhoto = (int) durationSlider.getValue();
-        String overlayText      = overlayTextArea.getText();
-        String outputDir        = "data/output";
+    @FXML
+    private void handleCompileFromFavourites() {
+        List<String> favourites = FavouritesManager.getFavourites();
+        if (favourites == null || favourites.isEmpty()) {
+            showError("No Favourites found.",
+                    "Mark photos as favourites in the Library first, then try again.");
+            return;
+        }
+        // Save overlay text before handleClipSelected wipes it
+        String savedOverlayText = overlayTextArea.getText();
 
+        clipPaths = new ArrayList<>(favourites);
+        clipOverlays.clear();
+        selectedClipIndex = -1;
+        rebuildFilmstrip();
+        updateStripInfo();
+        handleClipSelected(0);
+
+        // Restore text
+        overlayTextArea.setText(savedOverlayText);
+
+        runCompile(new ArrayList<>(favourites));
+    }
+
+    // =========================================================
+    // SHARED COMPILE LOGIC
+    // =========================================================
+
+    private void runCompile(List<String> paths) {
+        String outputDir   = "data/output";
         new File(outputDir).mkdirs();
 
+        String overlayText = overlayTextArea.getText();
+
         compileBtn.setDisable(true);
+        compileFavBtn.setDisable(true);
         saveDraftBtn.setText("Compiling…");
         saveDraftBtn.setVisible(true);
         saveDraftBtn.setManaged(true);
 
-        // Read transition toggle
         String transitionType = "NONE";
         if (transFade.isSelected())       transitionType = "FADE";
         else if (transCross.isSelected()) transitionType = "CROSS";
 
-        // Read position toggle
         String textPosition = "BOTTOM";
         if (posTop.isSelected())         textPosition = "TOP";
         else if (posCenter.isSelected()) textPosition = "CENTER";
 
-        // Read fps toggle
         int selectedFps = 30;
         if (fps24.isSelected())      selectedFps = 24;
-        else if (fps30.isSelected()) selectedFps = 30;
         else if (fps60.isSelected()) selectedFps = 60;
 
-        List<String> paths      = new ArrayList<>(clipPaths);
-        final String transition = transitionType;
-        final String position   = textPosition;
-        final int    finalFps   = selectedFps;
+        final int    durationPerPhoto = (int) durationSlider.getValue();
+        final String transition       = transitionType;
+        final String position         = textPosition;
+        final int    finalFps         = selectedFps;
+        final String graphicPath      = overlayImagePath;
+        final String graphicPos       = getGraphicPosition();
+        final String textStyle        = getTextStyle();   // ← NEW: "PLAIN" or "WITH_BOX"
 
         compileThread = new Thread(() -> {
             try {
                 String resultPath = new VideoCompiler()
                         .compileVideo(paths, durationPerPhoto, overlayText,
-                                outputDir, transition, position, finalFps);
+                                outputDir, transition, position, finalFps,
+                                graphicPath, graphicPos, textStyle);  // ← passes textStyle
 
                 Platform.runLater(() -> {
                     lastVideoPath = resultPath;
                     timecodeLabel.setText(formatTime(paths.size() * durationPerPhoto));
                     resetCompileUI();
-
-                    embedPlayer(resultPath);
+                    try {
+                        new MediaPlayerController().launchPlayer(resultPath);
+                    } catch (Exception ex) {
+                        showError("Could not open player.", ex.getMessage());
+                    }
                 });
 
             } catch (IllegalArgumentException | IOException e) {
@@ -572,104 +584,17 @@ public class VideoController {
 
     private void resetCompileUI() {
         compileBtn.setDisable(false);
+        compileFavBtn.setDisable(false);
         saveDraftBtn.setText("Save draft");
         saveDraftBtn.setVisible(false);
         saveDraftBtn.setManaged(false);
-    }
-
-    private void embedPlayer(String videoPath) {
-        if (embeddedPlayer != null) {
-            embeddedPlayer.stop();
-            embeddedPlayer.dispose();
-            embeddedPlayer = null;
-        }
-
-        if (embeddedMediaView != null) {
-            canvasArea.getChildren().remove(embeddedMediaView);
-            embeddedMediaView = null;
-        }
-
-        try {
-            File f = new File(videoPath);
-            if (!f.exists()) {
-                showError("Playback error.", "Video file not found: " + videoPath);
-                return;
-            }
-
-            javafx.scene.media.Media media =
-                    new javafx.scene.media.Media(f.toURI().toString());
-            embeddedPlayer    = new javafx.scene.media.MediaPlayer(media);
-            embeddedMediaView = new javafx.scene.media.MediaView(embeddedPlayer);
-
-            embeddedMediaView.fitWidthProperty().bind(canvasArea.widthProperty());
-            embeddedMediaView.fitHeightProperty().bind(
-                    canvasArea.heightProperty().subtract(60));
-            embeddedMediaView.setPreserveRatio(true);
-            StackPane.setAlignment(embeddedMediaView, Pos.CENTER);
-
-            previewView.setVisible(false);
-            previewView.setManaged(false);
-            placeholderLabel.setVisible(false);
-            placeholderLabel.setManaged(false);
-
-            canvasArea.getChildren().add(0, embeddedMediaView);
-
-            playPauseBtn.setOnAction(e -> {
-                if (embeddedPlayer.getStatus() ==
-                        javafx.scene.media.MediaPlayer.Status.PLAYING) {
-                    embeddedPlayer.pause();
-                    playPauseBtn.setText("▶");
-                } else {
-                    embeddedPlayer.play();
-                    playPauseBtn.setText("⏸");
-                }
-            });
-
-            embeddedPlayer.currentTimeProperty().addListener((obs, ov, nv) -> {
-                Duration total = embeddedPlayer.getTotalDuration();
-                if (total != null && total.toSeconds() > 0) {
-                    seekSlider.setValue(nv.toSeconds() / total.toSeconds());
-                    int cur = (int) nv.toSeconds();
-                    int tot = (int) total.toSeconds();
-                    playbackTimeLabel.setText(formatTime(cur) + " / " + formatTime(tot));
-                }
-            });
-
-            seekSlider.setOnMouseReleased(e -> {
-                Duration total = embeddedPlayer.getTotalDuration();
-                if (total != null) {
-                    embeddedPlayer.seek(total.multiply(seekSlider.getValue()));
-                }
-            });
-
-            prevBtn.setOnAction(e -> {
-                if (clipPaths.isEmpty()) return;
-                handleClipSelected(Math.max(0, selectedClipIndex - 1));
-            });
-            nextBtn.setOnAction(e -> {
-                if (clipPaths.isEmpty()) return;
-                handleClipSelected(Math.min(clipPaths.size() - 1, selectedClipIndex + 1));
-            });
-
-            embeddedPlayer.setOnReady(() -> {
-                embeddedPlayer.play();
-                playPauseBtn.setText("⏸");
-            });
-
-            embeddedPlayer.setOnEndOfMedia(() ->
-                    Platform.runLater(() -> playPauseBtn.setText("▶")));
-
-        } catch (Exception ex) {
-            showError("Could not open player.", ex.getMessage());
-        }
     }
 
     // =========================================================
     // SAVE DRAFT / EXPORT
     // =========================================================
 
-    @FXML
-    private void handleSaveDraft() {
+    @FXML private void handleSaveDraft() {
         showInfo("Draft saved.", "Your clip list has been noted.");
     }
 
@@ -679,24 +604,19 @@ public class VideoController {
             showWarning("Nothing to export.", "Compile the video first.");
             return;
         }
-
         FileChooser chooser = new FileChooser();
         chooser.setTitle("Export video");
-        chooser.setInitialFileName("video_export.mp4");
+        chooser.setInitialFileName("video_export.avi");
         chooser.getExtensionFilters().add(
-                new FileChooser.ExtensionFilter("MP4 Video", "*.mp4"));
-
+                new FileChooser.ExtensionFilter("AVI Video", "*.avi"));
         Stage stage = getStage();
         if (stage == null) return;
-
         File dest = chooser.showSaveDialog(stage);
         if (dest == null) return;
-
         try {
             Files.copy(Paths.get(lastVideoPath), dest.toPath(),
                     StandardCopyOption.REPLACE_EXISTING);
             showInfo("Exported.", "Saved to: " + dest.getAbsolutePath());
-            new MediaPlayerController().launchPlayer(dest.getAbsolutePath());
         } catch (IOException e) {
             showError("Export failed.", e.getMessage());
         }
@@ -706,27 +626,22 @@ public class VideoController {
     // PUBLIC API
     // =========================================================
 
+    public void setMainController(MainController mainController) {
+        this.mainController = mainController;
+    }
+
     public void setLibraryPaths(List<String> paths) {
         libraryPaths = paths != null ? new ArrayList<>(paths) : new ArrayList<>();
     }
 
     public void setClipPaths(List<String> paths) {
         clipPaths = paths != null ? new ArrayList<>(paths) : new ArrayList<>();
-        clipOverlays.clear();
-        selectedClipIndex = -1;
-        rebuildFilmstrip();
-        updateStripInfo();
-        if (!clipPaths.isEmpty()) {
-            handleClipSelected(0);
-        }
+        clipOverlays.clear(); selectedClipIndex = -1;
+        rebuildFilmstrip(); updateStripInfo();
+        if (!clipPaths.isEmpty()) handleClipSelected(0);
     }
 
-    public void onNavigateAway() {
-        // TODO: call this from MainController when leaving the video page
-        if (embeddedPlayer != null) {
-            embeddedPlayer.stop();
-        }
-    }
+    public void onNavigateAway() { /* no embedded player */ }
 
     // =========================================================
     // HELPERS
@@ -743,22 +658,16 @@ public class VideoController {
 
     private void showError(String header, String body) {
         Alert a = new Alert(Alert.AlertType.ERROR);
-        a.setHeaderText(header);
-        a.setContentText(body);
-        a.showAndWait();
+        a.setHeaderText(header); a.setContentText(body); a.showAndWait();
     }
 
     private void showWarning(String header, String body) {
         Alert a = new Alert(Alert.AlertType.WARNING);
-        a.setHeaderText(header);
-        a.setContentText(body);
-        a.showAndWait();
+        a.setHeaderText(header); a.setContentText(body); a.showAndWait();
     }
 
     private void showInfo(String header, String body) {
         Alert a = new Alert(Alert.AlertType.INFORMATION);
-        a.setHeaderText(header);
-        a.setContentText(body);
-        a.showAndWait();
+        a.setHeaderText(header); a.setContentText(body); a.showAndWait();
     }
 }
