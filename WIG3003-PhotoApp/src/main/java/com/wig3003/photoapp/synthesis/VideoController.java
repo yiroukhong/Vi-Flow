@@ -312,10 +312,13 @@ public class VideoController {
             int gSize = graphicSizeSlider != null ? (int) graphicSizeSlider.getValue() : 120;
             previewGraphicView.setFitWidth(gSize);
             previewGraphicView.setFitHeight(gSize);
-            Image gImg = new Image(
-                    new File(overlayImagePath).toURI().toString(),
-                    gSize, gSize, true, true, true);
-            previewGraphicView.setImage(gImg);
+            if (!overlayImagePath.equals(cachedGraphicPath) || cachedGraphicImage == null) {
+                cachedGraphicPath = overlayImagePath;
+                cachedGraphicImage = new Image(
+                        new File(overlayImagePath).toURI().toString(),
+                        300, 300, true, true, true);
+            }
+            previewGraphicView.setImage(cachedGraphicImage);
 
             javafx.geometry.Pos gPos = javafx.geometry.Pos.TOP_LEFT;
             switch (getGraphicPosition()) {
