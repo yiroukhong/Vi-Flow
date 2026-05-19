@@ -247,6 +247,8 @@ public class VideoController {
     @FXML
     private void handleClearOverlayImage() {
         overlayImagePath = null;
+        cachedGraphicPath = null;
+        cachedGraphicImage = null;
         overlayImageLabel.setText("No image selected");
         overlayImageLabel.setStyle(
                 "-fx-font-size:10;-fx-text-fill:#9C907D;-fx-max-width:160;-fx-wrap-text:true;");
