@@ -58,7 +58,6 @@ public class FavouritesManager {
         }).start();
     }
 
-    // Add image to favourites list
     public static void addFavourite(String absolutePath) {
         List<String> paths = load();
         if (!paths.contains(absolutePath)) {
@@ -67,10 +66,39 @@ public class FavouritesManager {
         }
     }
 
+    // Add multiple images to favourites list
+    public static void addFavourites(List<String> absolutePaths) {
+        List<String> paths = load();
+        boolean changed = false;
+        for (String path : absolutePaths) {
+            if (!paths.contains(path)) {
+                paths.add(path);
+                changed = true;
+            }
+        }
+        if (changed) {
+            save(paths);
+        }
+    }
+
     // Remove image from favourites list
     public static void removeFavourite(String absolutePath) {
         List<String> paths = load();
         if (paths.remove(absolutePath)) {
+            save(paths);
+        }
+    }
+
+    // Remove multiple images from favourites list
+    public static void removeFavourites(List<String> absolutePaths) {
+        List<String> paths = load();
+        boolean changed = false;
+        for (String path : absolutePaths) {
+            if (paths.remove(path)) {
+                changed = true;
+            }
+        }
+        if (changed) {
             save(paths);
         }
     }

@@ -10,6 +10,7 @@ import java.util.ResourceBundle;
 import java.util.Set;
 
 import com.wig3003.photoapp.model.MetadataStore;
+import com.wig3003.photoapp.util.FavouritesManager;
 import com.wig3003.photoapp.util.ImageUtils;
 
 import javafx.animation.PauseTransition;
@@ -241,6 +242,10 @@ public class MainController implements Initializable {
         selectedCountLabel.setText("");
 
         allPaths.addAll(MetadataStore.getInstance().getLibraryPaths());
+        
+        // Sync in-memory favourites with FavouritesManager
+        favourites.clear();
+        favourites.addAll(FavouritesManager.getFavourites());
 
         applyFilter();
         updateCounts();
@@ -648,38 +653,56 @@ public class MainController implements Initializable {
             }
         });
 
-        MenuItem favItem = new MenuItem("Add to favorites");
+        // REPLACED MULTIPLE FAVOURITE LOGIC
+        MenuItem favItem = new MenuItem();
         favItem.setOnAction(e -> {
             Set<Integer> toToggle = (selectedIndices.contains(index) && selectedIndices.size() > 1)
                     ? new HashSet<>(selectedIndices) : new HashSet<>();
             if (toToggle.isEmpty()) toToggle.add(index);
+            
             boolean allFav = toToggle.stream().allMatch(i -> favourites.contains(displayPaths.get(i)));
+            List<String> pathsToUpdate = new ArrayList<>();
+            
             for (int i : toToggle) {
-                if (allFav) favourites.remove(displayPaths.get(i));
-                else favourites.add(displayPaths.get(i));
+                String p = displayPaths.get(i);
+                pathsToUpdate.add(p);
+                if (allFav) {
+                    favourites.remove(p);
+                } else {
+                    favourites.add(p);
+                }
             }
-            updateCounts();
-            refreshGrid();
-            for (int i : selectedIndices) setOverlaySelected(i, true);
-        });
-
-        String favLabel = favourites.contains(path) ? "Remove from Favorites" : "Add to Favorites";
-        MenuItem favItem1 = new MenuItem(favLabel);
-        favItem1.setOnAction(e -> {
-            if (favourites.contains(path)) {
-                favourites.remove(path);
+            
+            // Actually save to disk using FavouritesManager
+            if (allFav) {
+                FavouritesManager.removeFavourites(pathsToUpdate);
             } else {
-                favourites.add(path);
+                FavouritesManager.addFavourites(pathsToUpdate);
             }
-            updateCounts();
-            int pathIndex = displayPaths.indexOf(path);
-            if (pathIndex >= 0) updateThumbnailBadges(pathIndex);
-            if (path.equals(currentPath)) {
-                boolean nowFav = favourites.contains(path);
-                heartButton.setText(nowFav ? "♥" : "♡");
-                if (nowFav) heartButton.getStyleClass().add("active");
-                else heartButton.getStyleClass().remove("active");
-            }
+            
+            // Queue UI refresh to happen safely after the menu event finishes
+            Platform.runLater(() -> {
+                updateCounts();
+                
+                if ("FAVOURITES".equals(activeFilter) && allFav) {
+                    // Only rebuild the grid if we are currently looking at the Favorites filter
+                    // and we just successfully removed images, so they disappear visually.
+                    applyFilter();
+                } else {
+                    // Smoothly update just the badges without rebuilding the layout
+                    for (int i : toToggle) {
+                        updateThumbnailBadges(i);
+                    }
+                }
+                
+                // Sync heart button if the current detail view image is affected
+                if (currentPath != null && pathsToUpdate.contains(currentPath)) {
+                    boolean nowFav = favourites.contains(currentPath);
+                    heartButton.setText(nowFav ? "♥" : "♡");
+                    if (nowFav) heartButton.getStyleClass().add("active");
+                    else heartButton.getStyleClass().remove("active");
+                }
+            });
         });
 
         MenuItem deleteItem = new MenuItem("Remove from library");
@@ -689,13 +712,13 @@ public class MainController implements Initializable {
             deleteSelectedImages();
         });
 
-        ctxMenu.getItems().addAll(exportItem, favItem1, new SeparatorMenuItem(), deleteItem);
+        ctxMenu.getItems().addAll(exportItem, favItem, new SeparatorMenuItem(), deleteItem);
         cell.setOnContextMenuRequested(e -> {
             Set<Integer> affected = (selectedIndices.contains(index) && selectedIndices.size() > 1)
                     ? new HashSet<>(selectedIndices) : new HashSet<>();
             if (affected.isEmpty()) affected.add(index);
             boolean allFav = affected.stream().allMatch(i -> favourites.contains(displayPaths.get(i)));
-            favItem1.setText(allFav ? "Remove from favorites" : "Add to favorites");
+            favItem.setText(allFav ? "Remove from favorites" : "Add to favorites");
             ctxMenu.show(cell, e.getScreenX(), e.getScreenY());
         });
 
@@ -913,10 +936,12 @@ public class MainController implements Initializable {
 
         if (favourites.contains(path)) {
             favourites.remove(path);
+            FavouritesManager.removeFavourite(path); // Update FavouritesManager
             heartButton.setText("♡");
             heartButton.getStyleClass().remove("active");
         } else {
             favourites.add(path);
+            FavouritesManager.addFavourite(path); // Update FavouritesManager
             heartButton.setText("♥");
             if (!heartButton.getStyleClass().contains("active")) {
                 heartButton.getStyleClass().add("active");
@@ -925,7 +950,6 @@ public class MainController implements Initializable {
         updateCounts();
         updateThumbnailBadges(selectedIndex);
     }
-
     // ── Annotation side panel ─────────────────────────────────────────────────
 
     private void openAnnotationPanel(int index) {
