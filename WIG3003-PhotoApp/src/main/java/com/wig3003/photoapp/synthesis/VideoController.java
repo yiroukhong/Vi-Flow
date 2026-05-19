@@ -521,15 +521,22 @@ public class VideoController {
         if (posTop.isSelected())         textPosition = "TOP";
         else if (posCenter.isSelected()) textPosition = "CENTER";
 
+        // Read fps toggle
+        int selectedFps = 30;
+        if (fps24.isSelected())      selectedFps = 24;
+        else if (fps30.isSelected()) selectedFps = 30;
+        else if (fps60.isSelected()) selectedFps = 60;
+
         List<String> paths      = new ArrayList<>(clipPaths);
         final String transition = transitionType;
         final String position   = textPosition;
+        final int    finalFps   = selectedFps;
 
         compileThread = new Thread(() -> {
             try {
                 String resultPath = new VideoCompiler()
                         .compileVideo(paths, durationPerPhoto, overlayText,
-                                outputDir, transition, position);
+                                outputDir, transition, position, finalFps);
 
                 Platform.runLater(() -> {
                     lastVideoPath = resultPath;

@@ -52,7 +52,8 @@ public class VideoCompiler {
             String overlayText,
             String outputDir,
             String transitionType,
-            String textPosition) throws IOException {
+            String textPosition,
+            int fps) throws IOException {
 
         // 1. Validate inputs
         if (imagePaths == null || imagePaths.isEmpty()) {
@@ -84,7 +85,7 @@ public class VideoCompiler {
         String filename  = "video_" + System.currentTimeMillis() + ".avi";
         String outPath   = outputDir + File.separator + filename;
 
-        int totalFrames = durationPerPhoto * (int) FPS;
+        int totalFrames = durationPerPhoto * fps;
         if (imagePaths.size() * totalFrames > 990) {
             // OpenCV VideoWriter AVI pattern limit is ~999 frames total
             System.out.println("[VideoCompiler] Frame count capped to 990 to avoid OpenCV limit.");
@@ -94,7 +95,7 @@ public class VideoCompiler {
         int         fourcc    = VideoWriter.fourcc('X', 'V', 'I', 'D');
         Size        frameSize = new Size(FRAME_WIDTH, FRAME_HEIGHT);
 
-        writer.open(outPath, fourcc, FPS, frameSize, true);
+        writer.open(outPath, fourcc, (double) fps, frameSize, true);
 
         if (!writer.isOpened()) {
             throw new IOException("VideoWriter failed to open: " + outPath
