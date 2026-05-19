@@ -131,6 +131,8 @@ public class VideoController {
     private final Map<Integer,String> clipOverlays      = new HashMap<>();
     private MainController            mainController;
     private String                    overlayImagePath  = null;
+    private Image                     cachedGraphicImage = null;
+    private String                    cachedGraphicPath  = null;
 
     // =========================================================
     // INITIALIZE
@@ -234,6 +236,8 @@ public class VideoController {
         File selected = chooser.showOpenDialog(stage);
         if (selected == null) return;
         overlayImagePath = selected.getAbsolutePath();
+        cachedGraphicPath = null;
+        cachedGraphicImage = null;
         overlayImageLabel.setText(selected.getName());
         overlayImageLabel.setStyle(
                 "-fx-font-size:10;-fx-text-fill:#1F1B16;-fx-max-width:160;-fx-wrap-text:true;");
@@ -243,6 +247,8 @@ public class VideoController {
     @FXML
     private void handleClearOverlayImage() {
         overlayImagePath = null;
+        cachedGraphicPath = null;
+        cachedGraphicImage = null;
         overlayImageLabel.setText("No image selected");
         overlayImageLabel.setStyle(
                 "-fx-font-size:10;-fx-text-fill:#9C907D;-fx-max-width:160;-fx-wrap-text:true;");
@@ -306,10 +312,13 @@ public class VideoController {
             int gSize = graphicSizeSlider != null ? (int) graphicSizeSlider.getValue() : 120;
             previewGraphicView.setFitWidth(gSize);
             previewGraphicView.setFitHeight(gSize);
-            Image gImg = new Image(
-                    new File(overlayImagePath).toURI().toString(),
-                    gSize, gSize, true, true, true);
-            previewGraphicView.setImage(gImg);
+            if (!overlayImagePath.equals(cachedGraphicPath) || cachedGraphicImage == null) {
+                cachedGraphicPath = overlayImagePath;
+                cachedGraphicImage = new Image(
+                        new File(overlayImagePath).toURI().toString(),
+                        300, 300, true, true, true);
+            }
+            previewGraphicView.setImage(cachedGraphicImage);
 
             javafx.geometry.Pos gPos = javafx.geometry.Pos.TOP_LEFT;
             switch (getGraphicPosition()) {

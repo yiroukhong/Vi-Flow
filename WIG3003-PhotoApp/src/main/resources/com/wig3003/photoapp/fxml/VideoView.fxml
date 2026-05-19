@@ -78,7 +78,7 @@
                            visible="false"/>
 
                 <Label fx:id="placeholderLabel"
-                       text="Add photos from Favorites to build your video"
+                       text="Add photos to create your video"
                        StackPane.alignment="CENTER"
                        style="-fx-font-size:13;-fx-text-fill:rgba(255,255,255,0.25);
                               -fx-font-family:'Georgia',serif;-fx-text-alignment:center;"/>

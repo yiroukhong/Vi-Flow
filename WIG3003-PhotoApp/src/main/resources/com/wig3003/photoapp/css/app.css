@@ -313,8 +313,8 @@
 }
 
 .annotation-badge-label {
-    -fx-text-fill: #6B6051;
-    -fx-font-size: 11px;
+    -fx-icon-color: #6B6051;
+    -fx-icon-size: 12px;
 }
 
 /* Heart badge */
