@@ -209,9 +209,13 @@ public class MainController implements Initializable {
     private void handleNavLibrary() {
         setNavActive(navLibrary);
         activeFilter = "ALL";
-        // CW: refresh app library images saved by Geometric / Extraction
-        loadAppLibrary();
-        // CW: change end
+        filterAll.setSelected(true); // Ensure filter toggle visually switches to 'All'
+        
+        // Sync just the favorites in case they were changed in the video/mosaic modules
+        favourites.clear();
+        favourites.addAll(FavouritesManager.getFavourites());
+        applyFilter();
+        
         showLibraryView();
     }
 
@@ -220,7 +224,12 @@ public class MainController implements Initializable {
         setNavActive(navFavorites);
         activeFilter = "FAVOURITES";
         filterFavorites.setSelected(true);
+        
+        // Ensure favorites are up to date
+        favourites.clear();
+        favourites.addAll(FavouritesManager.getFavourites());
         applyFilter();
+        
         showLibraryView();
     }
 
@@ -923,7 +932,7 @@ public class MainController implements Initializable {
                 && mainRoot.getCenter() == dipEditRoot) {
             restoreLibraryCenter();
         }
-        setNavActive(navLibrary);
+        // No setNavActive calls should be placed here, as they overwrite other states.
     }
     // CW: change end
 
@@ -1096,12 +1105,19 @@ public class MainController implements Initializable {
             if (result == removeBtn) {
                 List<Integer> sorted = new ArrayList<>(selectedIndices);
                 sorted.sort((a, b) -> b - a);
+                
+                List<String> pathsToRemove = new ArrayList<>();
                 for (int i : sorted) {
                     String path = displayPaths.get(i);
+                    pathsToRemove.add(path);
                     allPaths.remove(path);
                     MetadataStore.getInstance().deleteAnnotation(path);
                     favourites.remove(path);
                 }
+                
+                // Ensure they are also permanently removed from Favourites file
+                FavouritesManager.removeFavourites(pathsToRemove);
+                
                 MetadataStore.getInstance().saveLibraryImagePaths(allPaths);
                 clearSelectionStyle();
                 selectedIndex = -1;
