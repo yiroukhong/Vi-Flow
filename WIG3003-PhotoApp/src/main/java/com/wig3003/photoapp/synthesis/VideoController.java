@@ -56,6 +56,8 @@ public class VideoController {
     @FXML private StackPane canvasArea;
     @FXML private ImageView previewView;
     @FXML private Label     placeholderLabel;
+    @FXML private Label     previewTextLabel;
+    @FXML private ImageView previewGraphicView;
     @FXML private HBox      playbackBar;
 
     // =========================================================
