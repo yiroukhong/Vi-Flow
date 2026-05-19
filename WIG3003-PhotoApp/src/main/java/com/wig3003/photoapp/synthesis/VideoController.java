@@ -228,6 +228,7 @@ public class VideoController {
         overlayImageLabel.setText(selected.getName());
         overlayImageLabel.setStyle(
                 "-fx-font-size:10;-fx-text-fill:#1F1B16;-fx-max-width:160;-fx-wrap-text:true;");
+        refreshOverlayPreview();
     }
 
     @FXML
@@ -236,6 +237,7 @@ public class VideoController {
         overlayImageLabel.setText("No image selected");
         overlayImageLabel.setStyle(
                 "-fx-font-size:10;-fx-text-fill:#9C907D;-fx-max-width:160;-fx-wrap-text:true;");
+        refreshOverlayPreview();
     }
 
     private String getGraphicPosition() {
