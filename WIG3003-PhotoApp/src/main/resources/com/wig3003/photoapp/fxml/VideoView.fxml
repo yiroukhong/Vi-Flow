@@ -183,7 +183,8 @@
                         style="-fx-background-color:#FBF8F3;
                                -fx-border-color:transparent;
                                -fx-focus-color:transparent;
-                               -fx-faint-focus-color:transparent;">
+                               -fx-faint-focus-color:transparent;
+                               -fx-padding: 0 4 0 0;">
 
                 <VBox spacing="0">
 
