@@ -26,7 +26,8 @@ import java.util.List;
 /**
  * Winnie — Multimedia Synthesis
  * Video Compiler — Contract §6
- * AVI + XVID codec, 1280x720, 25fps fixed as per report decision.
+ * AVI container with MJPG codec (universally available via OpenCV/openpnp).
+ * MJPG selected over XVID due to openpnp bundled OpenCV not including XVID.
  */
 public class VideoCompiler {
 
@@ -64,15 +65,16 @@ public class VideoCompiler {
         // 2. Ensure output directory exists
         Files.createDirectories(Paths.get(outputDir));
 
-        // 3. Set up VideoWriter — XVID codec, AVI container, 1280x720, 25fps
-        //    AVI+XVID chosen per report §3.2.2 for JavaFX MediaPlayer compatibility
+        // 3. Set up VideoWriter — MJPG codec, AVI container, 1280x720, 25fps
+        //    MJPG chosen over XVID as openpnp bundled OpenCV does not include XVID.
+        //    AVI container is retained per report §3.2.2.
         String filename = "viflow_output_"
                 + new java.text.SimpleDateFormat("yyyyMMdd_HHmmss")
                         .format(new java.util.Date())
                 + ".avi";
         String outPath = outputDir + File.separator + filename;
 
-        int         fourcc    = VideoWriter.fourcc('X', 'V', 'I', 'D');
+        int         fourcc    = VideoWriter.fourcc('M', 'J', 'P', 'G'); // ← changed from XVID
         Size        frameSize = new Size(FRAME_WIDTH, FRAME_HEIGHT);
         VideoWriter writer    = new VideoWriter();
 
@@ -80,10 +82,8 @@ public class VideoCompiler {
 
         if (!writer.isOpened()) {
             throw new IOException(
-                "VideoWriter failed to open: " + outPath + "\n"
-                + "XVID codec not found. Please install XviD from https://www.xvid.com/download/\n"
-                + "and ensure opencv_java4120.dll and opencv_videoio_ffmpeg4120_64.dll\n"
-                + "are present in C:/Windows/System32.");
+                "VideoWriter failed to open: " + outPath
+                + "\nMJPG codec unavailable — check OpenCV native library is loaded.");
         }
 
         // 4. Process each image
@@ -113,7 +113,7 @@ public class VideoCompiler {
                     ImageUtils.matToBufferedImage(letterboxed);
 
             // d. Bridge to standard BufferedImage for Graphics2D
-            //    BufferedImage bridge used for superior font quality (per report §3.2.2)
+            //    BufferedImage bridge for superior font quality (per report §3.2.2)
             BufferedImage javaBi = new BufferedImage(
                     customBi.getWidth(), customBi.getHeight(),
                     BufferedImage.TYPE_3BYTE_BGR);
