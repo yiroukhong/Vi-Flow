@@ -13,6 +13,7 @@ import javafx.scene.layout.HBox;
 import javafx.scene.layout.Priority;
 import javafx.scene.layout.Region;
 import javafx.scene.layout.StackPane;
+import javafx.scene.layout.VBox;
 import javafx.scene.media.Media;
 import javafx.scene.media.MediaPlayer;
 import javafx.scene.media.MediaView;
@@ -111,20 +112,23 @@ public class MediaPlayerController {
         shareBtn.setOnAction(e ->
                 EmailSender.launchComposeWindow(videoPath, "VIDEO"));
 
-        // 9. Assemble controls bar
+        // 9. Assemble controls — seek row above buttons row
+        HBox.setHgrow(seekSlider, Priority.ALWAYS);
+        HBox seekRow = new HBox(8, seekSlider, timeLabel);
+        seekRow.setAlignment(Pos.CENTER_LEFT);
+
         Region spacer = new Region();
         HBox.setHgrow(spacer, Priority.ALWAYS);
+        HBox buttonsRow = new HBox(8, playBtn, pauseBtn, spacer, shareBtn);
+        buttonsRow.setAlignment(Pos.CENTER_LEFT);
 
-        HBox controlBox = new HBox(8,
-                playBtn, pauseBtn, seekSlider, timeLabel, spacer, shareBtn);
-        controlBox.setAlignment(Pos.CENTER_LEFT);
-        controlBox.setPadding(new Insets(10, 16, 10, 16));
-        controlBox.setStyle("-fx-background-color:rgba(0,0,0,0.75);");
+        VBox controlsVBox = new VBox(4, seekRow, buttonsRow);
+        controlsVBox.setStyle("-fx-background-color:#161210; -fx-padding:8 16 12 16;");
 
         // 10. Root layout
         BorderPane root = new BorderPane();
         root.setCenter(mediaPane);
-        root.setBottom(controlBox);
+        root.setBottom(controlsVBox);
         root.setStyle("-fx-background-color:black;");
 
         // 11. Auto-play when ready
