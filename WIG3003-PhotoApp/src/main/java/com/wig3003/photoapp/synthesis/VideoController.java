@@ -442,7 +442,6 @@ public class VideoController {
         if (isShift && selectedClipIndex >= 0) {
             int start = Math.min(selectedClipIndex, index);
             int end   = Math.max(selectedClipIndex, index);
-            selectedClipIndices.clear();
             for (int i = start; i <= end; i++) selectedClipIndices.add(i);
         } else {
             if (selectedClipIndex >= 0 && overlayTextArea != null)
@@ -471,7 +470,7 @@ public class VideoController {
                 t.start();
             }
         }
-        rebuildFilmstrip();
+        applySelectionBorders();
     }
 
     private void deleteSelectedClips() {
