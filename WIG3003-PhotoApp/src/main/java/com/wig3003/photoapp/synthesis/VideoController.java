@@ -604,6 +604,7 @@ public class VideoController {
             Files.copy(Paths.get(lastVideoPath), dest.toPath(),
                     StandardCopyOption.REPLACE_EXISTING);
             showInfo("Exported.", "Saved to: " + dest.getAbsolutePath());
+            new MediaPlayerController().launchPlayer(dest.getAbsolutePath());
         } catch (IOException e) {
             showError("Export failed.", e.getMessage());
         }
