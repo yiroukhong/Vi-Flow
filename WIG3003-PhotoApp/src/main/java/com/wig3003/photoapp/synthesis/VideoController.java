@@ -373,18 +373,12 @@ public class VideoController {
         card.setStyle(
                 "-fx-background-color:#ECE4D3;-fx-background-radius:6;-fx-cursor:hand;"
         );
-        Thread t = new Thread(() -> {
-            String uri = new File(path).toURI().toString();
-            Image img = new Image(uri, 120, 80, false, true);
-            Platform.runLater(() -> {
-                ImageView iv = new ImageView(img);
-                iv.setFitWidth(120); iv.setFitHeight(80);
-                iv.setPreserveRatio(false); iv.setSmooth(true);
-                card.getChildren().add(0, iv);
-            });
-        });
-        t.setDaemon(true);
-        t.start();
+        String uri = new File(path).toURI().toString();
+        Image img = new Image(uri, 120, 80, false, true, true);
+        ImageView iv = new ImageView(img);
+        iv.setFitWidth(120); iv.setFitHeight(80);
+        iv.setPreserveRatio(false); iv.setSmooth(true);
+        card.getChildren().add(0, iv); // index 0: ImageView
 
         StackPane dot = new StackPane();
         dot.setMinSize(8, 8); dot.setMaxSize(8, 8); dot.setPrefSize(8, 8);
@@ -393,7 +387,19 @@ public class VideoController {
         StackPane.setMargin(dot, new Insets(4, 4, 0, 0));
         boolean hasOverlay = !clipOverlays.getOrDefault(index, "").isEmpty();
         dot.setVisible(hasOverlay); dot.setManaged(hasOverlay);
-        card.getChildren().add(dot);
+        card.getChildren().add(dot); // index 1: dot
+
+        javafx.scene.shape.Rectangle selRect =
+                new javafx.scene.shape.Rectangle(120, 80);
+        selRect.setArcWidth(12);
+        selRect.setArcHeight(12);
+        selRect.setFill(javafx.scene.paint.Color.TRANSPARENT);
+        selRect.setStroke(javafx.scene.paint.Color.TRANSPARENT);
+        selRect.setStrokeWidth(3);
+        selRect.setStrokeType(javafx.scene.shape.StrokeType.INSIDE);
+        selRect.setMouseTransparent(true);
+        card.getChildren().add(selRect); // index 2: selRect (last, renders on top)
+
         card.setOnMouseClicked(e -> {
             if (e.getButton() == javafx.scene.input.MouseButton.PRIMARY) {
                 handleClipSelected(index, e.isShiftDown());
