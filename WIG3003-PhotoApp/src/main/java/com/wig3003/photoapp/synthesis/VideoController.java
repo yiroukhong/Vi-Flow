@@ -330,10 +330,14 @@ public class VideoController {
 
     private void rebuildFilmstrip() {
         filmstripBox.getChildren().clear();
+        clipCards.clear();
         for (int i = 0; i < clipPaths.size(); i++) {
-            filmstripBox.getChildren().add(buildClipCard(i, clipPaths.get(i)));
+            StackPane card = buildClipCard(i, clipPaths.get(i));
+            clipCards.add(card);
+            filmstripBox.getChildren().add(card);
         }
         filmstripBox.getChildren().add(buildAddCard());
+        applySelectionBorders();
     }
 
     private StackPane buildClipCard(int index, String path) {
