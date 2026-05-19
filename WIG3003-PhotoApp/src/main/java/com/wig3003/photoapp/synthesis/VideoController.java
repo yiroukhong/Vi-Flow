@@ -131,6 +131,8 @@ public class VideoController {
     private final Map<Integer,String> clipOverlays      = new HashMap<>();
     private MainController            mainController;
     private String                    overlayImagePath  = null;
+    private Image                     cachedGraphicImage = null;
+    private String                    cachedGraphicPath  = null;
 
     // =========================================================
     // INITIALIZE
