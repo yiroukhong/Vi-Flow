@@ -12,7 +12,9 @@ import java.util.Map;
 import java.util.Properties;
 // CW added
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 // CW added-end
 
 public class MetadataStore {
@@ -25,6 +27,7 @@ public class MetadataStore {
     
     // CW: remembered app library image paths, including imported folder images
     private final Map<String, String> libraryImages = new HashMap<>();
+    private final Set<String> removedLibraryPaths = new HashSet<>();
     // CW: change end
     // CW: library storage folder
     private final Path libraryDir;
@@ -183,6 +186,8 @@ public static boolean hasAnnotation(String absolutePath) {
                 annotations.put(key.substring("annotation.".length()), value);
             } else if (key.startsWith("library.")) {
                 libraryImages.put(value, value);
+            } else if (key.startsWith("removed.")) {
+                removedLibraryPaths.add(value);
             } else {
                 // CW: support old annotation format
                 annotations.put(key, value);
