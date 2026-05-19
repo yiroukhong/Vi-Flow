@@ -59,7 +59,7 @@
     </top>
 
     <!-- ═══════════════════════════════════════════════════════
-         CENTER — canvas + filmstrip
+         CENTER — canvas + playback bar + filmstrip
     ═══════════════════════════════════════════════════════ -->
     <center>
         <VBox>
@@ -83,11 +83,11 @@
 
             </StackPane>
 
-            <!-- Playback bar -->
+            <!-- Playback bar — below canvas, above filmstrip -->
             <HBox fx:id="playbackBar"
-                  alignment="CENTER_LEFT" spacing="12"
-                  style="-fx-background-color:#1F1B16;
-                         -fx-padding:8 16 8 16;">
+                  alignment="CENTER" spacing="12"
+                  style="-fx-background-color:#1A1714;
+                         -fx-padding:10 20 10 20;">
 
                 <Button fx:id="prevBtn" text="←"
                         onAction="#handlePrev"
@@ -124,7 +124,8 @@
                               -fx-min-width:80;"/>
 
                 <Slider fx:id="seekSlider" min="0" max="1" value="0"
-                        prefWidth="160" HBox.hgrow="ALWAYS"/>
+                        prefWidth="220"
+                        style="-fx-accent:#C8623F;"/>
 
             </HBox>
 
@@ -133,7 +134,6 @@
                          -fx-border-color:#ECE4D3;
                          -fx-border-width:1 0 0 0;">
 
-                <!-- Strip header -->
                 <HBox alignment="CENTER_LEFT" spacing="12"
                       style="-fx-padding:8 16 8 16;">
 
@@ -152,17 +152,14 @@
 
                 </HBox>
 
-                <!-- Filmstrip scroll -->
                 <ScrollPane fx:id="filmstripScroll"
                             hbarPolicy="AS_NEEDED" vbarPolicy="NEVER"
-                            fitToHeight="false" prefHeight="120"
-                            pannable="false"
+                            fitToHeight="true"
                             style="-fx-background-color:transparent;
                                    -fx-background:transparent;
                                    -fx-border-color:transparent;
                                    -fx-padding:0 16 12 16;">
                     <HBox fx:id="filmstripBox" spacing="8" alignment="CENTER_LEFT"
-                          minHeight="88" prefHeight="88"
                           style="-fx-padding:4 0 4 0;"/>
                 </ScrollPane>
 
@@ -184,8 +181,7 @@
                         style="-fx-background-color:#FBF8F3;
                                -fx-border-color:transparent;
                                -fx-focus-color:transparent;
-                               -fx-faint-focus-color:transparent;
-                               -fx-padding: 0 4 0 0;">
+                               -fx-faint-focus-color:transparent;">
 
                 <VBox spacing="0">
 
@@ -203,7 +199,6 @@
                     <VBox style="-fx-padding:16;
                                  -fx-border-color:#ECE4D3;
                                  -fx-border-width:0 0 1 0;">
-
                         <HBox alignment="CENTER_LEFT">
                             <Label text="Duration"
                                    style="-fx-font-size:12;
@@ -216,23 +211,19 @@
                                           -fx-font-weight:bold;
                                           -fx-text-fill:#C8623F;"/>
                         </HBox>
-
                         <Slider fx:id="durationSlider" min="1" max="10" value="2"
                                 maxWidth="Infinity"
                                 style="-fx-padding-top:8;"/>
-
                     </VBox>
 
                     <!-- Section 2: Transition -->
                     <VBox style="-fx-padding:16;
                                  -fx-border-color:#ECE4D3;
                                  -fx-border-width:0 0 1 0;">
-
                         <Label text="Transition"
                                style="-fx-font-size:10;
                                       -fx-font-weight:bold;
                                       -fx-text-fill:#9C907D;"/>
-
                         <HBox spacing="6" style="-fx-padding:8 0 0 0;">
                             <ToggleButton fx:id="transNone" text="None"
                                           toggleGroup="$transGroup" selected="true"
@@ -244,31 +235,26 @@
                                           toggleGroup="$transGroup"
                                           styleClass="filter-pill"/>
                         </HBox>
-
                     </VBox>
 
                     <!-- Section 3: Text Overlay -->
                     <VBox style="-fx-padding:16;
                                  -fx-border-color:#ECE4D3;
                                  -fx-border-width:0 0 1 0;">
-
                         <Label text="TEXT OVERLAY"
                                style="-fx-font-size:10;
                                       -fx-font-weight:bold;
                                       -fx-text-fill:#9C907D;"/>
-
                         <TextArea fx:id="overlayTextArea"
                                   promptText="Add a poem or caption…"
                                   prefHeight="90" wrapText="true"
                                   styleClass="annotation-field"
                                   style="-fx-padding-top:8;"/>
-
                         <Label text="Position"
                                style="-fx-font-size:10;
                                       -fx-font-weight:bold;
                                       -fx-text-fill:#1F1B16;
                                       -fx-padding:10 0 0 0;"/>
-
                         <HBox spacing="6" style="-fx-padding:6 0 0 0;">
                             <ToggleButton fx:id="posTop" text="Top"
                                           toggleGroup="$posGroup"
@@ -280,13 +266,11 @@
                                           toggleGroup="$posGroup" selected="true"
                                           styleClass="filter-pill"/>
                         </HBox>
-
                         <Label text="Size"
                                style="-fx-font-size:10;
                                       -fx-font-weight:bold;
                                       -fx-text-fill:#1F1B16;
                                       -fx-padding:10 0 0 0;"/>
-
                         <HBox spacing="8" alignment="CENTER_LEFT"
                               style="-fx-padding:6 0 0 0;">
                             <Slider fx:id="textSizeSlider" min="10" max="60" value="22"
@@ -297,25 +281,21 @@
                                           -fx-text-fill:#C8623F;
                                           -fx-min-width:40;"/>
                         </HBox>
-
                     </VBox>
 
                     <!-- Section 4: Output -->
                     <VBox style="-fx-padding:16;
                                  -fx-border-color:#ECE4D3;
                                  -fx-border-width:0 0 1 0;">
-
                         <Label text="OUTPUT"
                                style="-fx-font-size:10;
                                       -fx-font-weight:bold;
                                       -fx-text-fill:#9C907D;"/>
-
                         <Label text="Frame rate"
                                style="-fx-font-size:10;
                                       -fx-font-weight:bold;
                                       -fx-text-fill:#1F1B16;
                                       -fx-padding:10 0 0 0;"/>
-
                         <HBox spacing="6" style="-fx-padding:6 0 0 0;">
                             <ToggleButton fx:id="fps24" text="24"
                                           toggleGroup="$fpsGroup"
@@ -327,15 +307,28 @@
                                           toggleGroup="$fpsGroup"
                                           styleClass="filter-pill"/>
                         </HBox>
-
                     </VBox>
 
-                    <!-- Section 5: Compile -->
-                    <VBox style="-fx-padding:16;">
+                    <!-- Section 5: Compile buttons -->
+                    <VBox spacing="8" style="-fx-padding:16;">
+
+                        <!-- Compile from current filmstrip -->
                         <Button fx:id="compileBtn" text="Compile Video"
                                 onAction="#handleCompile"
                                 maxWidth="Infinity" prefHeight="36"
                                 styleClass="btn-primary"/>
+
+                        <!-- NEW: Compile directly from Favourites album -->
+                        <Button fx:id="compileFavBtn"
+                                text="♥  Compile from Favourites"
+                                onAction="#handleCompileFromFavourites"
+                                maxWidth="Infinity" prefHeight="36"
+                                style="-fx-background-color:#B0432B;
+                                       -fx-text-fill:white;
+                                       -fx-background-radius:8;
+                                       -fx-font-size:12;
+                                       -fx-cursor:hand;"/>
+
                     </VBox>
 
                 </VBox>

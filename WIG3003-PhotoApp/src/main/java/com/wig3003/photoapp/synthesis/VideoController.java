@@ -96,6 +96,7 @@ public class VideoController {
     @FXML private ToggleButton fps30;
     @FXML private ToggleButton fps60;
     @FXML private Button       compileBtn;
+    @FXML private Button       compileFavBtn;   // ← NEW
 
     // =========================================================
     // STATE
@@ -360,7 +361,7 @@ public class VideoController {
                 + "-fx-border-color:transparent;-fx-focus-color:transparent;"
                 + "-fx-faint-focus-color:transparent;");
 
-        Label titleLbl = new Label("Choose Photos");
+        Label titleLbl    = new Label("Choose Photos");
         titleLbl.setStyle("-fx-font-size:20;-fx-font-family:'Georgia',serif;-fx-text-fill:#1F1B16;");
         Label subtitleLbl = new Label("Click to select · " + available.size() + " available");
         subtitleLbl.setStyle("-fx-font-size:12;-fx-text-fill:#6B6051;");
@@ -475,22 +476,61 @@ public class VideoController {
     }
 
     // =========================================================
-    // COMPILE — launches MediaPlayerController popup after compile
+    // COMPILE — from current filmstrip
     // =========================================================
 
     @FXML
     private void handleCompile() {
         if (clipPaths.isEmpty()) {
-            showError("No clips.", "Add photos from Favorites to build your video.");
+            showError("No clips.", "Add photos to the filmstrip or use 'Compile from Favourites'.");
+            return;
+        }
+        runCompile(new ArrayList<>(clipPaths));
+    }
+
+    // =========================================================
+    // COMPILE FROM FAVOURITES — NEW FEATURE
+    // Loads all favourited photos directly and compiles without
+    // requiring the user to manually add them to the filmstrip.
+    // =========================================================
+
+    @FXML
+    private void handleCompileFromFavourites() {
+        List<String> favourites = FavouritesManager.getFavourites();
+
+        if (favourites == null || favourites.isEmpty()) {
+            showError("No Favourites found.",
+                    "Mark photos as favourites in the Library first, then try again.");
             return;
         }
 
-        int    durationPerPhoto = (int) durationSlider.getValue();
-        String overlayText      = overlayTextArea.getText();
-        String outputDir        = "data/output";
+        // Load favourites into the filmstrip so user can see what's being compiled
+        clipPaths = new ArrayList<>(favourites);
+        clipOverlays.clear();
+        selectedClipIndex = -1;
+        rebuildFilmstrip();
+        updateStripInfo();
+        handleClipSelected(0);
+
+        // Confirm and compile
+        showInfo("Compiling from Favourites",
+                favourites.size() + " photo(s) loaded from your Favourites album.");
+
+        runCompile(new ArrayList<>(favourites));
+    }
+
+    // =========================================================
+    // SHARED COMPILE LOGIC
+    // =========================================================
+
+    private void runCompile(List<String> paths) {
+        String outputDir = "data/output";
         new File(outputDir).mkdirs();
 
+        String overlayText = overlayTextArea.getText();
+
         compileBtn.setDisable(true);
+        compileFavBtn.setDisable(true);
         saveDraftBtn.setText("Compiling…");
         saveDraftBtn.setVisible(true);
         saveDraftBtn.setManaged(true);
@@ -507,10 +547,10 @@ public class VideoController {
         if (fps24.isSelected())      selectedFps = 24;
         else if (fps60.isSelected()) selectedFps = 60;
 
-        List<String> paths      = new ArrayList<>(clipPaths);
-        final String transition = transitionType;
-        final String position   = textPosition;
-        final int    finalFps   = selectedFps;
+        final int    durationPerPhoto = (int) durationSlider.getValue();
+        final String transition       = transitionType;
+        final String position         = textPosition;
+        final int    finalFps         = selectedFps;
 
         compileThread = new Thread(() -> {
             try {
@@ -522,8 +562,6 @@ public class VideoController {
                     lastVideoPath = resultPath;
                     timecodeLabel.setText(formatTime(paths.size() * durationPerPhoto));
                     resetCompileUI();
-
-                    // Launch popup player (per report §3.2.3 — non-blocking popup Stage)
                     try {
                         new MediaPlayerController().launchPlayer(resultPath);
                     } catch (Exception ex) {
@@ -547,6 +585,7 @@ public class VideoController {
 
     private void resetCompileUI() {
         compileBtn.setDisable(false);
+        compileFavBtn.setDisable(false);
         saveDraftBtn.setText("Save draft");
         saveDraftBtn.setVisible(false);
         saveDraftBtn.setManaged(false);
