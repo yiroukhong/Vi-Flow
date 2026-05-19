@@ -357,16 +357,11 @@ public class VideoController {
     }
 
     private void applySelectionBorders() {
-        for (int i = 0; i < clipCards.size(); i++) {
+        for (int i = 0; i < clipSelRects.size(); i++) {
             boolean sel = selectedClipIndices.contains(i);
-            clipCards.get(i).setStyle(
-                    "-fx-background-color:#ECE4D3;"
-                    + "-fx-background-radius:6;"
-                    + "-fx-cursor:hand;"
-                    + (sel
-                        ? "-fx-border-color:#B0432B;-fx-border-width:2;-fx-border-radius:6;"
-                        : "")
-            );
+            clipSelRects.get(i).setStroke(sel
+                    ? javafx.scene.paint.Color.web("#B0432B")
+                    : javafx.scene.paint.Color.TRANSPARENT);
         }
     }
 
