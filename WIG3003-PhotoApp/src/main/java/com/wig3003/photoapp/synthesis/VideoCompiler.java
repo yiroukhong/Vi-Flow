@@ -29,8 +29,10 @@ import javax.imageio.ImageIO;
 /**
  * Winnie — Multimedia Synthesis
  * Video Compiler — Contract §6
- * AVI + MJPG, 1280x720, 25fps.
- * Features: text overlay (plain or with background box), graphic image overlay.
+ *
+ * Codec strategy:
+ *   1st try: avc1 (H264) .mp4  — JavaFX MediaPlayer can play this natively
+ *   2nd try: MJPG .avi          — always available in OpenCV, opens via Desktop
  */
 public class VideoCompiler {
 
@@ -39,7 +41,7 @@ public class VideoCompiler {
     private static final double FPS          = 25.0;
 
     // =========================================================
-    // PUBLIC API — backward-compatible overload (no graphic, no textStyle)
+    // PUBLIC API — backward-compatible (no graphic, no textStyle)
     // =========================================================
 
     public String compileVideo(
@@ -57,16 +59,9 @@ public class VideoCompiler {
     }
 
     // =========================================================
-    // PUBLIC API — full overload with graphic overlay + text style
+    // PUBLIC API — full overload
     // =========================================================
 
-    /**
-     * @param overlayImagePath Path to PNG/JPG to stamp on every frame (null = none)
-     * @param overlayImagePos  "TOP_LEFT" | "TOP_RIGHT" | "BOTTOM_LEFT" |
-     *                         "BOTTOM_RIGHT" | "CENTER"  (null = TOP_LEFT)
-     * @param textStyle        "PLAIN"    → white text directly on frame
-     *                         "WITH_BOX" → white text on semi-transparent black box
-     */
     public String compileVideo(
             List<String> imagePaths,
             int durationPerPhoto,
@@ -96,9 +91,7 @@ public class VideoCompiler {
             position = "BOTTOM";
 
         String graphicPos = (overlayImagePos == null) ? "TOP_LEFT" : overlayImagePos.toUpperCase();
-
-        // Normalise textStyle — default PLAIN
-        boolean useBox = "WITH_BOX".equalsIgnoreCase(textStyle);
+        boolean useBox    = "WITH_BOX".equalsIgnoreCase(textStyle);
 
         // 2. Pre-load graphic overlay once
         BufferedImage graphicOverlay = null;
@@ -115,20 +108,43 @@ public class VideoCompiler {
         // 3. Ensure output directory exists
         Files.createDirectories(Paths.get(outputDir));
 
-        // 4. VideoWriter — MJPG, AVI, 1280x720
-        String filename = "viflow_output_"
-                + new java.text.SimpleDateFormat("yyyyMMdd_HHmmss")
-                        .format(new java.util.Date())
-                + ".avi";
-        String      outPath   = outputDir + File.separator + filename;
-        int         fourcc    = VideoWriter.fourcc('M', 'J', 'P', 'G');
-        Size        frameSize = new Size(FRAME_WIDTH, FRAME_HEIGHT);
+        // 4. Try codecs: avc1 MP4 first (JavaFX plays it), MJPG AVI fallback
+        String      timestamp = new java.text.SimpleDateFormat("yyyyMMdd_HHmmss")
+                                        .format(new java.util.Date());
         VideoWriter writer    = new VideoWriter();
+        Size        frameSize = new Size(FRAME_WIDTH, FRAME_HEIGHT);
+        String      outPath   = null;
 
-        writer.open(outPath, fourcc, FPS, frameSize, true);
-        if (!writer.isOpened())
-            throw new IOException("VideoWriter failed to open: " + outPath
-                    + "\nMJPG codec unavailable.");
+        int[][]  codecs     = {
+            { 'a', 'v', 'c', '1' },  // H264 MP4 — JavaFX plays natively on Windows
+            { 'M', 'J', 'P', 'G' },  // Motion JPEG AVI — always works with OpenCV
+        };
+        String[] extensions = { ".mp4", ".avi" };
+
+        for (int ci = 0; ci < codecs.length; ci++) {
+            int[] c    = codecs[ci];
+            int fourcc = VideoWriter.fourcc(
+                    (char)c[0], (char)c[1], (char)c[2], (char)c[3]);
+            String candidate = outputDir + File.separator
+                    + "viflow_output_" + timestamp + extensions[ci];
+
+            writer.open(candidate, fourcc, FPS, frameSize, true);
+            if (writer.isOpened()) {
+                outPath = candidate;
+                System.out.println("VideoCompiler: codec ["
+                        + (char)c[0]+(char)c[1]+(char)c[2]+(char)c[3]
+                        + "] → " + candidate);
+                break;
+            }
+            System.err.println("VideoCompiler: codec ["
+                    + (char)c[0]+(char)c[1]+(char)c[2]+(char)c[3]
+                    + "] not available, trying next…");
+            writer.release();
+            writer = new VideoWriter();
+        }
+
+        if (!writer.isOpened() || outPath == null)
+            throw new IOException("VideoWriter failed with all codecs. Output dir: " + outputDir);
 
         // 5. Process each image
         int perPhotoFrames = (int) (durationPerPhoto * FPS);
@@ -158,18 +174,12 @@ public class VideoCompiler {
             g2d.setRenderingHint(RenderingHints.KEY_RENDERING,
                     RenderingHints.VALUE_RENDER_QUALITY);
 
-            // Draw graphic image overlay
-            if (graphicOverlay != null) {
+            if (graphicOverlay != null)
                 drawGraphicOverlay(g2d, graphicOverlay, graphicPos);
-            }
 
-            // Draw text — plain OR with background box depending on user selection
             if (overlayText != null && !overlayText.isBlank()) {
-                if (useBox) {
-                    drawTextWithBackground(g2d, overlayText, position);  // WITH BOX
-                } else {
-                    drawTextPlain(g2d, overlayText, position);           // PLAIN
-                }
+                if (useBox) drawTextWithBackground(g2d, overlayText, position);
+                else        drawTextPlain(g2d, overlayText, position);
             }
 
             g2d.dispose();
@@ -183,9 +193,8 @@ public class VideoCompiler {
 
             Mat overlaidFrame = ImageUtils.bufferedImageToMat(modifiedCustomBi);
 
-            for (int f = 0; f < perPhotoFrames; f++) {
+            for (int f = 0; f < perPhotoFrames; f++)
                 writer.write(overlaidFrame);
-            }
 
             if (!transition.equals("NONE") && i < imagePaths.size() - 1) {
                 String nextPath  = imagePaths.get(i + 1);
@@ -208,24 +217,16 @@ public class VideoCompiler {
     }
 
     // =========================================================
-    // TEXT — PLAIN (no background box)
+    // TEXT — PLAIN
     // =========================================================
 
-    /**
-     * Draws white text directly on the frame without any background.
-     * Original style per report §3.2.2.
-     */
     private void drawTextPlain(Graphics2D g2d, String text, String position) {
         g2d.setFont(new Font("Arial", Font.BOLD, 32));
         FontMetrics fm = g2d.getFontMetrics();
         int textX = (FRAME_WIDTH - fm.stringWidth(text)) / 2;
         int textY = computeTextY(position, fm);
-
-        // Thin dark shadow for readability on bright backgrounds
         g2d.setColor(new Color(0, 0, 0, 160));
         g2d.drawString(text, textX + 2, textY + 2);
-
-        // White text on top
         g2d.setColor(Color.WHITE);
         g2d.drawString(text, textX, textY);
     }
@@ -234,31 +235,24 @@ public class VideoCompiler {
     // TEXT — WITH BACKGROUND BOX
     // =========================================================
 
-    /**
-     * Draws text with a semi-transparent rounded black box behind it.
-     * Improves readability against any background image.
-     */
     private void drawTextWithBackground(Graphics2D g2d, String text, String position) {
         g2d.setFont(new Font("Arial", Font.BOLD, 32));
         FontMetrics fm = g2d.getFontMetrics();
+        int textW = fm.stringWidth(text);
+        int textH = fm.getAscent();
+        int padX  = 20;
+        int padY  = 12;
+        int textX = (FRAME_WIDTH - textW) / 2;
+        int textY = computeTextY(position, fm);
+        int boxX  = textX - padX;
+        int boxY  = textY - textH - padY;
+        int boxW  = textW + padX * 2;
+        int boxH  = textH + padY * 2;
 
-        int textW  = fm.stringWidth(text);
-        int textH  = fm.getAscent();
-        int padX   = 20;
-        int padY   = 12;
-        int boxW   = textW + padX * 2;
-        int boxH   = textH + padY * 2;
-        int textX  = (FRAME_WIDTH - textW) / 2;
-        int textY  = computeTextY(position, fm);
-        int boxX   = textX - padX;
-        int boxY   = textY - textH - padY;
-
-        // Semi-transparent black rounded box
         g2d.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, 0.55f));
         g2d.setColor(Color.BLACK);
         g2d.fillRoundRect(boxX, boxY, boxW, boxH, 16, 16);
 
-        // White text fully opaque on top of box
         g2d.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, 1.0f));
         g2d.setColor(Color.WHITE);
         g2d.drawString(text, textX, textY);
@@ -271,36 +265,26 @@ public class VideoCompiler {
     private void drawGraphicOverlay(Graphics2D g2d, BufferedImage graphic, String position) {
         int maxW  = 200;
         int maxH  = 100;
-        double scaleW = (double) maxW / graphic.getWidth();
-        double scaleH = (double) maxH / graphic.getHeight();
-        double scale  = Math.min(scaleW, scaleH);
-        int drawW = (int) (graphic.getWidth()  * scale);
-        int drawH = (int) (graphic.getHeight() * scale);
+        double scale = Math.min((double) maxW / graphic.getWidth(),
+                                (double) maxH / graphic.getHeight());
+        int drawW  = (int) (graphic.getWidth()  * scale);
+        int drawH  = (int) (graphic.getHeight() * scale);
         int margin = 16;
         int drawX, drawY;
 
         switch (position) {
             case "TOP_RIGHT":
-                drawX = FRAME_WIDTH  - drawW - margin;
-                drawY = margin;
-                break;
+                drawX = FRAME_WIDTH  - drawW - margin; drawY = margin; break;
             case "BOTTOM_LEFT":
-                drawX = margin;
-                drawY = FRAME_HEIGHT - drawH - margin;
-                break;
+                drawX = margin; drawY = FRAME_HEIGHT - drawH - margin; break;
             case "BOTTOM_RIGHT":
                 drawX = FRAME_WIDTH  - drawW - margin;
-                drawY = FRAME_HEIGHT - drawH - margin;
-                break;
+                drawY = FRAME_HEIGHT - drawH - margin; break;
             case "CENTER":
                 drawX = (FRAME_WIDTH  - drawW) / 2;
-                drawY = (FRAME_HEIGHT - drawH) / 2;
-                break;
-            case "TOP_LEFT":
-            default:
-                drawX = margin;
-                drawY = margin;
-                break;
+                drawY = (FRAME_HEIGHT - drawH) / 2; break;
+            default: // TOP_LEFT
+                drawX = margin; drawY = margin; break;
         }
 
         g2d.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, 0.80f));
@@ -309,23 +293,21 @@ public class VideoCompiler {
     }
 
     // =========================================================
-    // PRIVATE HELPERS
+    // HELPERS
     // =========================================================
 
     private int computeTextY(String position, FontMetrics fm) {
         switch (position) {
             case "TOP":    return fm.getAscent() + 40;
             case "CENTER": return (FRAME_HEIGHT + fm.getAscent() - fm.getDescent()) / 2;
-            case "BOTTOM":
             default:       return FRAME_HEIGHT - 40;
         }
     }
 
     private Mat letterboxResize(Mat src) {
         Mat    canvas  = Mat.zeros(FRAME_HEIGHT, FRAME_WIDTH, src.type());
-        double scaleW  = (double) FRAME_WIDTH  / src.cols();
-        double scaleH  = (double) FRAME_HEIGHT / src.rows();
-        double scale   = Math.min(scaleW, scaleH);
+        double scale   = Math.min((double) FRAME_WIDTH / src.cols(),
+                                  (double) FRAME_HEIGHT / src.rows());
         int    scaledW = (int) (src.cols() * scale);
         int    scaledH = (int) (src.rows() * scale);
         int    offsetX = (FRAME_WIDTH  - scaledW) / 2;
@@ -347,15 +329,13 @@ public class VideoCompiler {
                 double ratio = 1.0 - (double)(t + 1) / half;
                 Mat blended  = new Mat();
                 Core.addWeighted(frameA, ratio, black, 0, 0, blended);
-                writer.write(blended);
-                blended.release();
+                writer.write(blended); blended.release();
             }
             for (int t = 0; t < half; t++) {
                 double ratio = (double)(t + 1) / half;
                 Mat blended  = new Mat();
                 Core.addWeighted(frameB, ratio, black, 0, 0, blended);
-                writer.write(blended);
-                blended.release();
+                writer.write(blended); blended.release();
             }
             black.release();
         } else {
@@ -363,8 +343,7 @@ public class VideoCompiler {
                 double alpha = (double) t / (transFrames - 1);
                 Mat blended  = new Mat();
                 Core.addWeighted(frameA, 1.0 - alpha, frameB, alpha, 0, blended);
-                writer.write(blended);
-                blended.release();
+                writer.write(blended); blended.release();
             }
         }
     }
