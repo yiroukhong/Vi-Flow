@@ -111,6 +111,8 @@ public class VideoController {
     @FXML private ToggleButton gposBotLeft;
     @FXML private ToggleButton gposBotRight;
     @FXML private ToggleButton gposCenter;
+    @FXML private Slider       graphicSizeSlider;
+    @FXML private Label        graphicSizeLabel;
 
     // =========================================================
     // STATE
@@ -189,6 +191,11 @@ public class VideoController {
                 (obs, ov, nv) -> { if (nv) refreshOverlayPreview(); });
         gposCenter.selectedProperty().addListener(
                 (obs, ov, nv) -> { if (nv) refreshOverlayPreview(); });
+
+        graphicSizeSlider.valueProperty().addListener((obs, ov, nv) -> {
+            graphicSizeLabel.setText(nv.intValue() + " px");
+            refreshOverlayPreview();
+        });
 
         // ── Keyboard delete handlers ──────────────────────────
         filmstripScroll.setOnKeyPressed(e -> {
@@ -295,9 +302,12 @@ public class VideoController {
         if (overlayImagePath != null && !overlayImagePath.isBlank()) {
             previewGraphicView.setVisible(true);
             previewGraphicView.setManaged(true);
+            int gSize = graphicSizeSlider != null ? (int) graphicSizeSlider.getValue() : 120;
+            previewGraphicView.setFitWidth(gSize);
+            previewGraphicView.setFitHeight(gSize);
             Image gImg = new Image(
                     new File(overlayImagePath).toURI().toString(),
-                    120, 120, true, true, true);
+                    gSize, gSize, true, true, true);
             previewGraphicView.setImage(gImg);
 
             javafx.geometry.Pos gPos = javafx.geometry.Pos.TOP_LEFT;
