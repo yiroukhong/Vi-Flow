@@ -91,11 +91,6 @@ public class VideoCompiler {
         int totalFrames = durationPerPhoto * fps;
         // Transition frames: 12 per boundary, written (N-1) times
         int transFramesTotal = transition.equals("NONE") ? 0 : (imagePaths.size() - 1) * 12;
-        if (imagePaths.size() * totalFrames + transFramesTotal > 990) {
-            // OpenCV VideoWriter AVI pattern limit is ~999 frames total
-            System.out.println("[VideoCompiler] Frame count capped to 990 to avoid OpenCV limit.");
-        }
-
         VideoWriter writer    = new VideoWriter();
         int         fourcc    = VideoWriter.fourcc('X', 'V', 'I', 'D');
         Size        frameSize = new Size(FRAME_WIDTH, FRAME_HEIGHT);
