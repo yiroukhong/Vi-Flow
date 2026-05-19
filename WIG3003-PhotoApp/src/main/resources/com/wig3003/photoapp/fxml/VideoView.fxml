@@ -58,6 +58,25 @@
                 <ImageView fx:id="previewView"
                            preserveRatio="true" smooth="true"
                            StackPane.alignment="CENTER"/>
+
+                <!-- Text overlay preview label -->
+                <Label fx:id="previewTextLabel" text=""
+                       mouseTransparent="true"
+                       wrapText="true"
+                       StackPane.alignment="BOTTOM_CENTER"
+                       style="-fx-font-size:22;
+                              -fx-text-fill:white;
+                              -fx-font-weight:bold;
+                              -fx-padding:6 12 6 12;"/>
+
+                <!-- Graphic overlay preview image -->
+                <ImageView fx:id="previewGraphicView"
+                           fitWidth="120" fitHeight="120"
+                           preserveRatio="true" smooth="true"
+                           mouseTransparent="true"
+                           StackPane.alignment="TOP_LEFT"
+                           visible="false"/>
+
                 <Label fx:id="placeholderLabel"
                        text="Add photos from Favorites to build your video"
                        StackPane.alignment="CENTER"
@@ -255,6 +274,17 @@
                             <ToggleButton fx:id="gposCenter" text="⊙ Center"
                                           toggleGroup="$graphicPosGroup"
                                           styleClass="filter-pill"/>
+                        </HBox>
+
+                        <Label text="Size"
+                               style="-fx-font-size:10;-fx-font-weight:bold;
+                                      -fx-text-fill:#1F1B16;-fx-padding:10 0 0 0;"/>
+                        <HBox spacing="8" alignment="CENTER_LEFT" style="-fx-padding:6 0 0 0;">
+                            <Slider fx:id="graphicSizeSlider" min="40" max="300" value="120"
+                                    HBox.hgrow="ALWAYS"/>
+                            <Label fx:id="graphicSizeLabel" text="120 px"
+                                   style="-fx-font-size:11;-fx-font-weight:bold;
+                                          -fx-text-fill:#C8623F;-fx-min-width:48;"/>
                         </HBox>
 
                     </VBox>

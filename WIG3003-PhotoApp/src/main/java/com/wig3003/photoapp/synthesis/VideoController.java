@@ -56,6 +56,8 @@ public class VideoController {
     @FXML private StackPane canvasArea;
     @FXML private ImageView previewView;
     @FXML private Label     placeholderLabel;
+    @FXML private Label     previewTextLabel;
+    @FXML private ImageView previewGraphicView;
     @FXML private HBox      playbackBar;
 
     // =========================================================
@@ -109,14 +111,19 @@ public class VideoController {
     @FXML private ToggleButton gposBotLeft;
     @FXML private ToggleButton gposBotRight;
     @FXML private ToggleButton gposCenter;
+    @FXML private Slider       graphicSizeSlider;
+    @FXML private Label        graphicSizeLabel;
 
     // =========================================================
     // STATE
     // =========================================================
 
-    private List<String>              clipPaths         = new ArrayList<>();
-    private List<String>              libraryPaths      = new ArrayList<>();
+    private List<String>                              clipPaths     = new ArrayList<>();
+    private final List<StackPane>                     clipCards     = new ArrayList<>();
+    private final List<javafx.scene.shape.Rectangle> clipSelRects  = new ArrayList<>();
+    private List<String>                              libraryPaths  = new ArrayList<>();
     private int                       selectedClipIndex = -1;
+    private final Set<Integer>        selectedClipIndices = new HashSet<>();
     private String                    lastVideoPath     = null;
     private Thread                    compileThread     = null;
     private Timeline                  previewTimeline   = null;
@@ -157,6 +164,57 @@ public class VideoController {
             }
         });
 
+        // ── Overlay preview listeners ─────────────────────────
+        overlayTextArea.textProperty().addListener(
+                (obs, ov, nv) -> refreshOverlayPreview());
+        textSizeSlider.valueProperty().addListener(
+                (obs, ov, nv) -> refreshOverlayPreview());
+
+        posTop.selectedProperty().addListener(
+                (obs, ov, nv) -> { if (nv) refreshOverlayPreview(); });
+        posCenter.selectedProperty().addListener(
+                (obs, ov, nv) -> { if (nv) refreshOverlayPreview(); });
+        posBottom.selectedProperty().addListener(
+                (obs, ov, nv) -> { if (nv) refreshOverlayPreview(); });
+
+        textStylePlain.selectedProperty().addListener(
+                (obs, ov, nv) -> { if (nv) refreshOverlayPreview(); });
+        textStyleBox.selectedProperty().addListener(
+                (obs, ov, nv) -> { if (nv) refreshOverlayPreview(); });
+
+        gposTopLeft.selectedProperty().addListener(
+                (obs, ov, nv) -> { if (nv) refreshOverlayPreview(); });
+        gposTopRight.selectedProperty().addListener(
+                (obs, ov, nv) -> { if (nv) refreshOverlayPreview(); });
+        gposBotLeft.selectedProperty().addListener(
+                (obs, ov, nv) -> { if (nv) refreshOverlayPreview(); });
+        gposBotRight.selectedProperty().addListener(
+                (obs, ov, nv) -> { if (nv) refreshOverlayPreview(); });
+        gposCenter.selectedProperty().addListener(
+                (obs, ov, nv) -> { if (nv) refreshOverlayPreview(); });
+
+        graphicSizeSlider.valueProperty().addListener((obs, ov, nv) -> {
+            graphicSizeLabel.setText(nv.intValue() + " px");
+            refreshOverlayPreview();
+        });
+
+        // ── Keyboard delete handlers ──────────────────────────
+        filmstripScroll.setOnKeyPressed(e -> {
+            if (e.getCode() == javafx.scene.input.KeyCode.DELETE
+                    || e.getCode() == javafx.scene.input.KeyCode.BACK_SPACE) {
+                deleteSelectedClips();
+                e.consume();
+            }
+        });
+
+        canvasArea.setFocusTraversable(true);
+        canvasArea.setOnKeyPressed(e -> {
+            if (e.getCode() == javafx.scene.input.KeyCode.DELETE
+                    || e.getCode() == javafx.scene.input.KeyCode.BACK_SPACE) {
+                if (!selectedClipIndices.isEmpty()) deleteSelectedClips();
+            }
+        });
+
         loadClipsFromFavourites();
     }
 
@@ -179,6 +237,7 @@ public class VideoController {
         overlayImageLabel.setText(selected.getName());
         overlayImageLabel.setStyle(
                 "-fx-font-size:10;-fx-text-fill:#1F1B16;-fx-max-width:160;-fx-wrap-text:true;");
+        refreshOverlayPreview();
     }
 
     @FXML
@@ -187,6 +246,7 @@ public class VideoController {
         overlayImageLabel.setText("No image selected");
         overlayImageLabel.setStyle(
                 "-fx-font-size:10;-fx-text-fill:#9C907D;-fx-max-width:160;-fx-wrap-text:true;");
+        refreshOverlayPreview();
     }
 
     private String getGraphicPosition() {
@@ -210,6 +270,63 @@ public class VideoController {
         return "PLAIN";
     }
 
+    private void refreshOverlayPreview() {
+        if (previewTextLabel == null) return;
+
+        // ── Text overlay ──────────────────────────────────────
+        String text = overlayTextArea != null ? overlayTextArea.getText() : "";
+        previewTextLabel.setText(text);
+
+        int size = textSizeSlider != null ? (int) textSizeSlider.getValue() : 22;
+        String baseStyle =
+                "-fx-font-size:" + size + ";"
+                + "-fx-text-fill:white;"
+                + "-fx-font-weight:bold;";
+
+        if ("WITH_BOX".equals(getTextStyle())) {
+            baseStyle += "-fx-background-color:rgba(0,0,0,0.55);"
+                    + "-fx-background-radius:4;"
+                    + "-fx-padding:6 12 6 12;";
+        } else {
+            baseStyle += "-fx-padding:6 12 6 12;";
+        }
+        previewTextLabel.setStyle(baseStyle);
+
+        javafx.geometry.Pos alignment = javafx.geometry.Pos.BOTTOM_CENTER;
+        if (posTop != null && posTop.isSelected())
+            alignment = javafx.geometry.Pos.TOP_CENTER;
+        else if (posCenter != null && posCenter.isSelected())
+            alignment = javafx.geometry.Pos.CENTER;
+        StackPane.setAlignment(previewTextLabel, alignment);
+
+        // ── Graphic overlay ───────────────────────────────────
+        if (overlayImagePath != null && !overlayImagePath.isBlank()) {
+            previewGraphicView.setVisible(true);
+            previewGraphicView.setManaged(true);
+            int gSize = graphicSizeSlider != null ? (int) graphicSizeSlider.getValue() : 120;
+            previewGraphicView.setFitWidth(gSize);
+            previewGraphicView.setFitHeight(gSize);
+            Image gImg = new Image(
+                    new File(overlayImagePath).toURI().toString(),
+                    gSize, gSize, true, true, true);
+            previewGraphicView.setImage(gImg);
+
+            javafx.geometry.Pos gPos = javafx.geometry.Pos.TOP_LEFT;
+            switch (getGraphicPosition()) {
+                case "TOP_RIGHT":    gPos = javafx.geometry.Pos.TOP_RIGHT;    break;
+                case "BOTTOM_LEFT":  gPos = javafx.geometry.Pos.BOTTOM_LEFT;  break;
+                case "BOTTOM_RIGHT": gPos = javafx.geometry.Pos.BOTTOM_RIGHT; break;
+                case "CENTER":       gPos = javafx.geometry.Pos.CENTER;       break;
+                default:             gPos = javafx.geometry.Pos.TOP_LEFT;     break;
+            }
+            StackPane.setAlignment(previewGraphicView, gPos);
+            StackPane.setMargin(previewGraphicView, new Insets(12, 12, 12, 12));
+        } else {
+            previewGraphicView.setVisible(false);
+            previewGraphicView.setManaged(false);
+        }
+    }
+
     // =========================================================
     // LOAD CLIPS
     // =========================================================
@@ -224,10 +341,28 @@ public class VideoController {
 
     private void rebuildFilmstrip() {
         filmstripBox.getChildren().clear();
+        clipCards.clear();
+        clipSelRects.clear();
         for (int i = 0; i < clipPaths.size(); i++) {
-            filmstripBox.getChildren().add(buildClipCard(i, clipPaths.get(i)));
+            StackPane card = buildClipCard(i, clipPaths.get(i));
+            clipCards.add(card);
+            javafx.scene.shape.Rectangle r =
+                (javafx.scene.shape.Rectangle)
+                card.getChildren().get(card.getChildren().size() - 1);
+            clipSelRects.add(r);
+            filmstripBox.getChildren().add(card);
         }
         filmstripBox.getChildren().add(buildAddCard());
+        applySelectionBorders();
+    }
+
+    private void applySelectionBorders() {
+        for (int i = 0; i < clipSelRects.size(); i++) {
+            boolean sel = selectedClipIndices.contains(i);
+            clipSelRects.get(i).setStroke(sel
+                    ? javafx.scene.paint.Color.web("#B0432B")
+                    : javafx.scene.paint.Color.TRANSPARENT);
+        }
     }
 
     private StackPane buildClipCard(int index, String path) {
@@ -235,23 +370,15 @@ public class VideoController {
         card.setMinSize(120, 80);
         card.setMaxSize(120, 80);
         card.setPrefSize(120, 80);
-        boolean selected = (index == selectedClipIndex);
         card.setStyle(
                 "-fx-background-color:#ECE4D3;-fx-background-radius:6;-fx-cursor:hand;"
-                + (selected ? "-fx-border-color:#B0432B;-fx-border-width:2;-fx-border-radius:6;" : "")
         );
-        Thread t = new Thread(() -> {
-            String uri = new File(path).toURI().toString();
-            Image img = new Image(uri, 120, 80, false, true);
-            Platform.runLater(() -> {
-                ImageView iv = new ImageView(img);
-                iv.setFitWidth(120); iv.setFitHeight(80);
-                iv.setPreserveRatio(false); iv.setSmooth(true);
-                card.getChildren().add(0, iv);
-            });
-        });
-        t.setDaemon(true);
-        t.start();
+        String uri = new File(path).toURI().toString();
+        Image img = new Image(uri, 120, 80, false, true, true);
+        ImageView iv = new ImageView(img);
+        iv.setFitWidth(120); iv.setFitHeight(80);
+        iv.setPreserveRatio(false); iv.setSmooth(true);
+        card.getChildren().add(0, iv); // index 0: ImageView
 
         StackPane dot = new StackPane();
         dot.setMinSize(8, 8); dot.setMaxSize(8, 8); dot.setPrefSize(8, 8);
@@ -260,8 +387,41 @@ public class VideoController {
         StackPane.setMargin(dot, new Insets(4, 4, 0, 0));
         boolean hasOverlay = !clipOverlays.getOrDefault(index, "").isEmpty();
         dot.setVisible(hasOverlay); dot.setManaged(hasOverlay);
-        card.getChildren().add(dot);
-        card.setOnMouseClicked(e -> handleClipSelected(index));
+        card.getChildren().add(dot); // index 1: dot
+
+        javafx.scene.shape.Rectangle selRect =
+                new javafx.scene.shape.Rectangle(120, 80);
+        selRect.setArcWidth(12);
+        selRect.setArcHeight(12);
+        selRect.setFill(javafx.scene.paint.Color.TRANSPARENT);
+        selRect.setStroke(javafx.scene.paint.Color.TRANSPARENT);
+        selRect.setStrokeWidth(3);
+        selRect.setStrokeType(javafx.scene.shape.StrokeType.INSIDE);
+        selRect.setMouseTransparent(true);
+        card.getChildren().add(selRect); // index 2: selRect (last, renders on top)
+
+        card.setOnMouseClicked(e -> {
+            if (e.getButton() == javafx.scene.input.MouseButton.PRIMARY) {
+                handleClipSelected(index, e.isShiftDown());
+            }
+        });
+
+        javafx.scene.control.ContextMenu ctx = new javafx.scene.control.ContextMenu();
+        javafx.scene.control.MenuItem removeItem =
+                new javafx.scene.control.MenuItem("Remove from strip");
+        removeItem.setStyle("-fx-text-fill:#B0432B;");
+        removeItem.setOnAction(e -> {
+            if (!selectedClipIndices.contains(index)) {
+                selectedClipIndices.clear();
+                selectedClipIndices.add(index);
+                selectedClipIndex = index;
+            }
+            deleteSelectedClips();
+        });
+        ctx.getItems().add(removeItem);
+        card.setOnContextMenuRequested(e ->
+                ctx.show(card, e.getScreenX(), e.getScreenY()));
+
         return card;
     }
 
@@ -292,29 +452,73 @@ public class VideoController {
     // =========================================================
 
     private void handleClipSelected(int index) {
-        if (selectedClipIndex >= 0 && overlayTextArea != null)
-            clipOverlays.put(selectedClipIndex, overlayTextArea.getText());
-        selectedClipIndex = index;
-        clipIndexLabel.setText(String.format("CLIP · #%02d", index + 1));
-        overlayTextArea.setText(clipOverlays.getOrDefault(index, ""));
-        if (index >= 0 && index < clipPaths.size()) {
-            final String path = clipPaths.get(index);
-            Thread t = new Thread(() -> {
-                Image img = new Image(new File(path).toURI().toString(), 0, 0, true, true);
-                Platform.runLater(() -> {
-                    previewView.setImage(img);
-                    double fw = canvasArea.getWidth() - 48;
-                    double fh = canvasArea.getHeight() - 48;
-                    if (fw > 0) previewView.setFitWidth(fw);
-                    if (fh > 0) previewView.setFitHeight(fh);
-                    placeholderLabel.setVisible(false);
-                    placeholderLabel.setManaged(false);
+        handleClipSelected(index, false);
+    }
+
+    private void handleClipSelected(int index, boolean isShift) {
+        if (isShift && selectedClipIndex >= 0) {
+            int start = Math.min(selectedClipIndex, index);
+            int end   = Math.max(selectedClipIndex, index);
+            for (int i = start; i <= end; i++) selectedClipIndices.add(i);
+        } else {
+            if (selectedClipIndex >= 0 && overlayTextArea != null)
+                clipOverlays.put(selectedClipIndex, overlayTextArea.getText());
+            selectedClipIndices.clear();
+            selectedClipIndices.add(index);
+            selectedClipIndex = index;
+            clipIndexLabel.setText(String.format("CLIP · #%02d", index + 1));
+            overlayTextArea.setText(clipOverlays.getOrDefault(index, ""));
+            if (index >= 0 && index < clipPaths.size()) {
+                final String path = clipPaths.get(index);
+                Thread t = new Thread(() -> {
+                    Image img = new Image(new File(path).toURI().toString(), 0, 0, true, true);
+                    Platform.runLater(() -> {
+                        previewView.setImage(img);
+                        double fw = canvasArea.getWidth() - 48;
+                        double fh = canvasArea.getHeight() - 48;
+                        if (fw > 0) previewView.setFitWidth(fw);
+                        if (fh > 0) previewView.setFitHeight(fh);
+                        placeholderLabel.setVisible(false);
+                        placeholderLabel.setManaged(false);
+                        refreshOverlayPreview();
+                    });
                 });
-            });
-            t.setDaemon(true);
-            t.start();
+                t.setDaemon(true);
+                t.start();
+            }
         }
+        applySelectionBorders();
+    }
+
+    private void deleteSelectedClips() {
+        if (selectedClipIndices.isEmpty()) return;
+        List<Integer> sorted = new ArrayList<>(selectedClipIndices);
+        sorted.sort((a, b) -> b - a); // descending to preserve indices while removing
+        for (int i : sorted) {
+            if (i >= 0 && i < clipPaths.size()) {
+                clipPaths.remove(i);
+                clipOverlays.remove(i);
+                Map<Integer, String> shifted = new HashMap<>();
+                for (Map.Entry<Integer, String> entry : clipOverlays.entrySet()) {
+                    int k = entry.getKey();
+                    shifted.put(k > i ? k - 1 : k, entry.getValue());
+                }
+                clipOverlays.clear();
+                clipOverlays.putAll(shifted);
+            }
+        }
+        selectedClipIndices.clear();
+        selectedClipIndex = clipPaths.isEmpty() ? -1 : 0;
         rebuildFilmstrip();
+        updateStripInfo();
+        if (!clipPaths.isEmpty()) {
+            handleClipSelected(0);
+        } else {
+            previewView.setImage(null);
+            placeholderLabel.setVisible(true);
+            placeholderLabel.setManaged(true);
+            clipIndexLabel.setText("CLIP · —");
+        }
     }
 
     // =========================================================
