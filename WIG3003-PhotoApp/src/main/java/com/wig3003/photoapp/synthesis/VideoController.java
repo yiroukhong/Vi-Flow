@@ -1,5 +1,6 @@
 package com.wig3003.photoapp.synthesis;
 
+import com.wig3003.photoapp.ui.MainController;
 import com.wig3003.photoapp.util.FavouritesManager;
 
 import javafx.animation.KeyFrame;
@@ -71,9 +72,9 @@ public class VideoController {
     // FXML — FILMSTRIP
     // =========================================================
 
-    @FXML private Label       stripInfoLabel;
-    @FXML private HBox        filmstripBox;
-    @FXML private ScrollPane  filmstripScroll;
+    @FXML private Label      stripInfoLabel;
+    @FXML private HBox       filmstripBox;
+    @FXML private ScrollPane filmstripScroll;
 
     // =========================================================
     // FXML — RIGHT PANEL
@@ -108,8 +109,7 @@ public class VideoController {
     private Timeline                  previewTimeline   = null;
     private int                       previewIndex      = 0;
     private final Map<Integer,String> clipOverlays      = new HashMap<>();
-    private javafx.scene.media.MediaPlayer embeddedPlayer    = null;
-    private javafx.scene.media.MediaView   embeddedMediaView = null;
+    private MainController            mainController;
 
     // =========================================================
     // INITIALIZE
@@ -151,14 +151,11 @@ public class VideoController {
     // =========================================================
 
     private void loadClipsFromFavourites() {
-        List<String> paths;
-        paths = FavouritesManager.getFavourites();
+        List<String> paths = FavouritesManager.getFavourites();
         clipPaths = new ArrayList<>(paths);
         rebuildFilmstrip();
         updateStripInfo();
-        if (!clipPaths.isEmpty()) {
-            handleClipSelected(0);
-        }
+        if (!clipPaths.isEmpty()) handleClipSelected(0);
     }
 
     private void rebuildFilmstrip() {
@@ -227,17 +224,11 @@ public class VideoController {
                 + "-fx-border-radius:6;"
                 + "-fx-cursor:hand;"
         );
-
         Label plus = new Label("+");
         plus.setStyle("-fx-font-size:24; -fx-text-fill:#9C907D;");
         card.getChildren().add(plus);
         card.setOnMouseClicked(e -> {
-            try {
-                handleAddFromFavorites();
-            } catch (IOException e1) {
-                // TODO Auto-generated catch block
-                e1.printStackTrace();
-            }
+            try { handleAddFromFavorites(); } catch (IOException ex) { ex.printStackTrace(); }
         });
         return card;
     }
@@ -256,9 +247,8 @@ public class VideoController {
     // =========================================================
 
     private void handleClipSelected(int index) {
-        if (selectedClipIndex >= 0 && overlayTextArea != null) {
+        if (selectedClipIndex >= 0 && overlayTextArea != null)
             clipOverlays.put(selectedClipIndex, overlayTextArea.getText());
-        }
 
         selectedClipIndex = index;
         clipIndexLabel.setText(String.format("CLIP · #%02d", index + 1));
@@ -282,7 +272,6 @@ public class VideoController {
             t.setDaemon(true);
             t.start();
         }
-
         rebuildFilmstrip();
     }
 
@@ -294,12 +283,8 @@ public class VideoController {
         Stage owner = getStage();
         if (owner == null) return;
 
-        List<String> source;
-        if (!libraryPaths.isEmpty()) {
-            source = libraryPaths;
-        } else {
-            source = FavouritesManager.getFavourites();
-        }
+        List<String> source = !libraryPaths.isEmpty()
+                ? libraryPaths : FavouritesManager.getFavourites();
 
         List<String> available = source.stream()
                 .filter(p -> !clipPaths.contains(p))
@@ -366,7 +351,6 @@ public class VideoController {
                     check.setVisible(true);
                 }
             });
-
             tilePane.getChildren().add(card);
         }
 
@@ -382,26 +366,22 @@ public class VideoController {
         subtitleLbl.setStyle("-fx-font-size:12;-fx-text-fill:#6B6051;");
         VBox header = new VBox(4, titleLbl, subtitleLbl);
         header.setPadding(new Insets(16, 20, 14, 20));
-        header.setStyle("-fx-background-color:#FBF8F3;"
-                + "-fx-border-color:#ECE4D3;-fx-border-width:0 0 1 0;");
+        header.setStyle("-fx-background-color:#FBF8F3;-fx-border-color:#ECE4D3;-fx-border-width:0 0 1 0;");
 
         Button cancelBtn = new Button("Cancel");
         cancelBtn.setStyle("-fx-background-color:white;-fx-text-fill:#1F1B16;"
                 + "-fx-border-color:#DDD2BC;-fx-border-radius:8;-fx-background-radius:8;"
                 + "-fx-padding:8 16;-fx-cursor:hand;-fx-font-size:13;");
-
         Button addBtn = new Button("Add Selected");
         addBtn.setStyle("-fx-background-color:#1F1B16;-fx-text-fill:white;"
                 + "-fx-background-radius:8;-fx-padding:8 16;-fx-cursor:hand;-fx-font-size:13;");
 
         Region spacer = new Region();
         HBox.setHgrow(spacer, Priority.ALWAYS);
-
         HBox footer = new HBox(8, spacer, cancelBtn, addBtn);
         footer.setPadding(new Insets(12, 20, 14, 20));
         footer.setAlignment(Pos.CENTER_RIGHT);
-        footer.setStyle("-fx-background-color:#FBF8F3;"
-                + "-fx-border-color:#ECE4D3;-fx-border-width:1 0 0 0;");
+        footer.setStyle("-fx-background-color:#FBF8F3;-fx-border-color:#ECE4D3;-fx-border-width:1 0 0 0;");
 
         BorderPane root = new BorderPane();
         root.setTop(header);
@@ -419,13 +399,10 @@ public class VideoController {
         dialog.setY(owner.getY() + 40);
 
         cancelBtn.setOnAction(e -> dialog.close());
-
         addBtn.setOnAction(e -> {
             if (!selectedPaths.isEmpty()) {
                 for (String p : available) {
-                    if (selectedPaths.contains(p)) {
-                        clipPaths.add(p);
-                    }
+                    if (selectedPaths.contains(p)) clipPaths.add(p);
                 }
                 rebuildFilmstrip();
                 updateStripInfo();
@@ -443,9 +420,7 @@ public class VideoController {
     // =========================================================
 
     @FXML
-    private void handleAddText() {
-        overlayTextArea.requestFocus();
-    }
+    private void handleAddText() { overlayTextArea.requestFocus(); }
 
     // =========================================================
     // PLAYBACK
@@ -500,7 +475,7 @@ public class VideoController {
     }
 
     // =========================================================
-    // COMPILE — auto-launches MediaPlayer after compile
+    // COMPILE — launches MediaPlayerController popup after compile
     // =========================================================
 
     @FXML
@@ -513,7 +488,6 @@ public class VideoController {
         int    durationPerPhoto = (int) durationSlider.getValue();
         String overlayText      = overlayTextArea.getText();
         String outputDir        = "data/output";
-
         new File(outputDir).mkdirs();
 
         compileBtn.setDisable(true);
@@ -521,20 +495,16 @@ public class VideoController {
         saveDraftBtn.setVisible(true);
         saveDraftBtn.setManaged(true);
 
-        // Read transition toggle
         String transitionType = "NONE";
         if (transFade.isSelected())       transitionType = "FADE";
         else if (transCross.isSelected()) transitionType = "CROSS";
 
-        // Read position toggle
         String textPosition = "BOTTOM";
         if (posTop.isSelected())         textPosition = "TOP";
         else if (posCenter.isSelected()) textPosition = "CENTER";
 
-        // Read fps toggle
         int selectedFps = 30;
         if (fps24.isSelected())      selectedFps = 24;
-        else if (fps30.isSelected()) selectedFps = 30;
         else if (fps60.isSelected()) selectedFps = 60;
 
         List<String> paths      = new ArrayList<>(clipPaths);
@@ -553,7 +523,12 @@ public class VideoController {
                     timecodeLabel.setText(formatTime(paths.size() * durationPerPhoto));
                     resetCompileUI();
 
-                    embedPlayer(resultPath);
+                    // Launch popup player (per report §3.2.3 — non-blocking popup Stage)
+                    try {
+                        new MediaPlayerController().launchPlayer(resultPath);
+                    } catch (Exception ex) {
+                        showError("Could not open player.", ex.getMessage());
+                    }
                 });
 
             } catch (IllegalArgumentException | IOException e) {
@@ -577,93 +552,6 @@ public class VideoController {
         saveDraftBtn.setManaged(false);
     }
 
-    private void embedPlayer(String videoPath) {
-        if (embeddedPlayer != null) {
-            embeddedPlayer.stop();
-            embeddedPlayer.dispose();
-            embeddedPlayer = null;
-        }
-
-        if (embeddedMediaView != null) {
-            canvasArea.getChildren().remove(embeddedMediaView);
-            embeddedMediaView = null;
-        }
-
-        try {
-            File f = new File(videoPath);
-            if (!f.exists()) {
-                showError("Playback error.", "Video file not found: " + videoPath);
-                return;
-            }
-
-            javafx.scene.media.Media media =
-                    new javafx.scene.media.Media(f.toURI().toString());
-            embeddedPlayer    = new javafx.scene.media.MediaPlayer(media);
-            embeddedMediaView = new javafx.scene.media.MediaView(embeddedPlayer);
-
-            embeddedMediaView.fitWidthProperty().bind(canvasArea.widthProperty());
-            embeddedMediaView.fitHeightProperty().bind(
-                    canvasArea.heightProperty().subtract(60));
-            embeddedMediaView.setPreserveRatio(true);
-            StackPane.setAlignment(embeddedMediaView, Pos.CENTER);
-
-            previewView.setVisible(false);
-            previewView.setManaged(false);
-            placeholderLabel.setVisible(false);
-            placeholderLabel.setManaged(false);
-
-            canvasArea.getChildren().add(0, embeddedMediaView);
-
-            playPauseBtn.setOnAction(e -> {
-                if (embeddedPlayer.getStatus() ==
-                        javafx.scene.media.MediaPlayer.Status.PLAYING) {
-                    embeddedPlayer.pause();
-                    playPauseBtn.setText("▶");
-                } else {
-                    embeddedPlayer.play();
-                    playPauseBtn.setText("⏸");
-                }
-            });
-
-            embeddedPlayer.currentTimeProperty().addListener((obs, ov, nv) -> {
-                Duration total = embeddedPlayer.getTotalDuration();
-                if (total != null && total.toSeconds() > 0) {
-                    seekSlider.setValue(nv.toSeconds() / total.toSeconds());
-                    int cur = (int) nv.toSeconds();
-                    int tot = (int) total.toSeconds();
-                    playbackTimeLabel.setText(formatTime(cur) + " / " + formatTime(tot));
-                }
-            });
-
-            seekSlider.setOnMouseReleased(e -> {
-                Duration total = embeddedPlayer.getTotalDuration();
-                if (total != null) {
-                    embeddedPlayer.seek(total.multiply(seekSlider.getValue()));
-                }
-            });
-
-            prevBtn.setOnAction(e -> {
-                if (clipPaths.isEmpty()) return;
-                handleClipSelected(Math.max(0, selectedClipIndex - 1));
-            });
-            nextBtn.setOnAction(e -> {
-                if (clipPaths.isEmpty()) return;
-                handleClipSelected(Math.min(clipPaths.size() - 1, selectedClipIndex + 1));
-            });
-
-            embeddedPlayer.setOnReady(() -> {
-                embeddedPlayer.play();
-                playPauseBtn.setText("⏸");
-            });
-
-            embeddedPlayer.setOnEndOfMedia(() ->
-                    Platform.runLater(() -> playPauseBtn.setText("▶")));
-
-        } catch (Exception ex) {
-            showError("Could not open player.", ex.getMessage());
-        }
-    }
-
     // =========================================================
     // SAVE DRAFT / EXPORT
     // =========================================================
@@ -682,9 +570,9 @@ public class VideoController {
 
         FileChooser chooser = new FileChooser();
         chooser.setTitle("Export video");
-        chooser.setInitialFileName("video_export.mp4");
+        chooser.setInitialFileName("video_export.avi");
         chooser.getExtensionFilters().add(
-                new FileChooser.ExtensionFilter("MP4 Video", "*.mp4"));
+                new FileChooser.ExtensionFilter("AVI Video", "*.avi"));
 
         Stage stage = getStage();
         if (stage == null) return;
@@ -696,7 +584,6 @@ public class VideoController {
             Files.copy(Paths.get(lastVideoPath), dest.toPath(),
                     StandardCopyOption.REPLACE_EXISTING);
             showInfo("Exported.", "Saved to: " + dest.getAbsolutePath());
-            new MediaPlayerController().launchPlayer(dest.getAbsolutePath());
         } catch (IOException e) {
             showError("Export failed.", e.getMessage());
         }
@@ -705,6 +592,10 @@ public class VideoController {
     // =========================================================
     // PUBLIC API
     // =========================================================
+
+    public void setMainController(MainController mainController) {
+        this.mainController = mainController;
+    }
 
     public void setLibraryPaths(List<String> paths) {
         libraryPaths = paths != null ? new ArrayList<>(paths) : new ArrayList<>();
@@ -716,17 +607,10 @@ public class VideoController {
         selectedClipIndex = -1;
         rebuildFilmstrip();
         updateStripInfo();
-        if (!clipPaths.isEmpty()) {
-            handleClipSelected(0);
-        }
+        if (!clipPaths.isEmpty()) handleClipSelected(0);
     }
 
-    public void onNavigateAway() {
-        // TODO: call this from MainController when leaving the video page
-        if (embeddedPlayer != null) {
-            embeddedPlayer.stop();
-        }
-    }
+    public void onNavigateAway() { /* no embedded player to stop */ }
 
     // =========================================================
     // HELPERS
