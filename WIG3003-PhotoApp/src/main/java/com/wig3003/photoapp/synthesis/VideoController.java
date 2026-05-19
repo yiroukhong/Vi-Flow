@@ -117,6 +117,7 @@ public class VideoController {
     // =========================================================
 
     private List<String>              clipPaths         = new ArrayList<>();
+    private final List<StackPane>     clipCards         = new ArrayList<>();
     private List<String>              libraryPaths      = new ArrayList<>();
     private int                       selectedClipIndex = -1;
     private final Set<Integer>        selectedClipIndices = new HashSet<>();
