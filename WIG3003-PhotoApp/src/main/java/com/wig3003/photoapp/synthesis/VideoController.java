@@ -409,6 +409,37 @@ public class VideoController {
         rebuildFilmstrip();
     }
 
+    private void deleteSelectedClips() {
+        if (selectedClipIndices.isEmpty()) return;
+        List<Integer> sorted = new ArrayList<>(selectedClipIndices);
+        sorted.sort((a, b) -> b - a); // descending to preserve indices while removing
+        for (int i : sorted) {
+            if (i >= 0 && i < clipPaths.size()) {
+                clipPaths.remove(i);
+                clipOverlays.remove(i);
+                Map<Integer, String> shifted = new HashMap<>();
+                for (Map.Entry<Integer, String> entry : clipOverlays.entrySet()) {
+                    int k = entry.getKey();
+                    shifted.put(k > i ? k - 1 : k, entry.getValue());
+                }
+                clipOverlays.clear();
+                clipOverlays.putAll(shifted);
+            }
+        }
+        selectedClipIndices.clear();
+        selectedClipIndex = clipPaths.isEmpty() ? -1 : 0;
+        rebuildFilmstrip();
+        updateStripInfo();
+        if (!clipPaths.isEmpty()) {
+            handleClipSelected(0);
+        } else {
+            previewView.setImage(null);
+            placeholderLabel.setVisible(true);
+            placeholderLabel.setManaged(true);
+            clipIndexLabel.setText("CLIP · —");
+        }
+    }
+
     // =========================================================
     // ADD FROM FAVORITES
     // =========================================================
