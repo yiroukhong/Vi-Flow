@@ -758,7 +758,7 @@ public class MainController implements Initializable {
     }
 
     private StackPane buildAnnotationBadge() {
-        Label icon = new Label("✏");
+        FontIcon icon = new FontIcon("bi-pencil-fill");
         icon.getStyleClass().add("annotation-badge-label");
 
         StackPane badge = new StackPane(icon);
