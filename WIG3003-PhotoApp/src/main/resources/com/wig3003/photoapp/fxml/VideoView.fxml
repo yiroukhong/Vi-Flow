@@ -58,6 +58,25 @@
                 <ImageView fx:id="previewView"
                            preserveRatio="true" smooth="true"
                            StackPane.alignment="CENTER"/>
+
+                <!-- Text overlay preview label -->
+                <Label fx:id="previewTextLabel" text=""
+                       mouseTransparent="true"
+                       wrapText="true"
+                       StackPane.alignment="BOTTOM_CENTER"
+                       style="-fx-font-size:22;
+                              -fx-text-fill:white;
+                              -fx-font-weight:bold;
+                              -fx-padding:6 12 6 12;"/>
+
+                <!-- Graphic overlay preview image -->
+                <ImageView fx:id="previewGraphicView"
+                           fitWidth="120" fitHeight="120"
+                           preserveRatio="true" smooth="true"
+                           mouseTransparent="true"
+                           StackPane.alignment="TOP_LEFT"
+                           visible="false"/>
+
                 <Label fx:id="placeholderLabel"
                        text="Add photos from Favorites to build your video"
                        StackPane.alignment="CENTER"
