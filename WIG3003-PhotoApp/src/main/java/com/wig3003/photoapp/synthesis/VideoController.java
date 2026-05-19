@@ -359,10 +359,8 @@ public class VideoController {
         card.setMinSize(120, 80);
         card.setMaxSize(120, 80);
         card.setPrefSize(120, 80);
-        boolean selected = selectedClipIndices.contains(index);
         card.setStyle(
                 "-fx-background-color:#ECE4D3;-fx-background-radius:6;-fx-cursor:hand;"
-                + (selected ? "-fx-border-color:#B0432B;-fx-border-width:2;-fx-border-radius:6;" : "")
         );
         Thread t = new Thread(() -> {
             String uri = new File(path).toURI().toString();
