@@ -82,11 +82,16 @@ public class VideoCompiler {
         Files.createDirectories(Paths.get(outputDir));
 
         // 3. Set up VideoWriter — XVID codec, AVI container, 1280x720, 25fps
-        String filename  = "video_" + System.currentTimeMillis() + ".avi";
+        String filename  = "viflow_output_"
+                + new java.text.SimpleDateFormat("yyyyMMdd_HHmmss")
+                        .format(new java.util.Date())
+                + ".avi";
         String outPath   = outputDir + File.separator + filename;
 
         int totalFrames = durationPerPhoto * fps;
-        if (imagePaths.size() * totalFrames > 990) {
+        // Transition frames: 12 per boundary, written (N-1) times
+        int transFramesTotal = transition.equals("NONE") ? 0 : (imagePaths.size() - 1) * 12;
+        if (imagePaths.size() * totalFrames + transFramesTotal > 990) {
             // OpenCV VideoWriter AVI pattern limit is ~999 frames total
             System.out.println("[VideoCompiler] Frame count capped to 990 to avoid OpenCV limit.");
         }
@@ -103,10 +108,11 @@ public class VideoCompiler {
         }
 
         // 4. Process each image
-        // Distribute budget evenly: cap total frames across all images
-        int maxTotalFrames = 990;
-        int perPhotoFrames = Math.max(1,
-                Math.min(totalFrames, maxTotalFrames / imagePaths.size()));
+        // Reserve transition budget first, then distribute remainder evenly across clips
+        int maxTotalFrames    = 990;
+        int availableForClips = maxTotalFrames - transFramesTotal;
+        int perPhotoFrames    = Math.max(1,
+                Math.min(totalFrames, availableForClips / imagePaths.size()));
 
         for (int i = 0; i < imagePaths.size(); i++) {
             String imgPath = imagePaths.get(i);
