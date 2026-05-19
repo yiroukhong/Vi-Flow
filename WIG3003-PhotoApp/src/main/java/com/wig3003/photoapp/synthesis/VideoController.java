@@ -119,6 +119,7 @@ public class VideoController {
     private List<String>              clipPaths         = new ArrayList<>();
     private List<String>              libraryPaths      = new ArrayList<>();
     private int                       selectedClipIndex = -1;
+    private final Set<Integer>        selectedClipIndices = new HashSet<>();
     private String                    lastVideoPath     = null;
     private Thread                    compileThread     = null;
     private Timeline                  previewTimeline   = null;
