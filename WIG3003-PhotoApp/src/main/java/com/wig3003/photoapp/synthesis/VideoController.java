@@ -160,6 +160,52 @@ public class VideoController {
             }
         });
 
+        // ── Overlay preview listeners ─────────────────────────
+        overlayTextArea.textProperty().addListener(
+                (obs, ov, nv) -> refreshOverlayPreview());
+        textSizeSlider.valueProperty().addListener(
+                (obs, ov, nv) -> refreshOverlayPreview());
+
+        posTop.selectedProperty().addListener(
+                (obs, ov, nv) -> { if (nv) refreshOverlayPreview(); });
+        posCenter.selectedProperty().addListener(
+                (obs, ov, nv) -> { if (nv) refreshOverlayPreview(); });
+        posBottom.selectedProperty().addListener(
+                (obs, ov, nv) -> { if (nv) refreshOverlayPreview(); });
+
+        textStylePlain.selectedProperty().addListener(
+                (obs, ov, nv) -> { if (nv) refreshOverlayPreview(); });
+        textStyleBox.selectedProperty().addListener(
+                (obs, ov, nv) -> { if (nv) refreshOverlayPreview(); });
+
+        gposTopLeft.selectedProperty().addListener(
+                (obs, ov, nv) -> { if (nv) refreshOverlayPreview(); });
+        gposTopRight.selectedProperty().addListener(
+                (obs, ov, nv) -> { if (nv) refreshOverlayPreview(); });
+        gposBotLeft.selectedProperty().addListener(
+                (obs, ov, nv) -> { if (nv) refreshOverlayPreview(); });
+        gposBotRight.selectedProperty().addListener(
+                (obs, ov, nv) -> { if (nv) refreshOverlayPreview(); });
+        gposCenter.selectedProperty().addListener(
+                (obs, ov, nv) -> { if (nv) refreshOverlayPreview(); });
+
+        // ── Keyboard delete handlers ──────────────────────────
+        filmstripScroll.setOnKeyPressed(e -> {
+            if (e.getCode() == javafx.scene.input.KeyCode.DELETE
+                    || e.getCode() == javafx.scene.input.KeyCode.BACK_SPACE) {
+                deleteSelectedClips();
+                e.consume();
+            }
+        });
+
+        canvasArea.setFocusTraversable(true);
+        canvasArea.setOnKeyPressed(e -> {
+            if (e.getCode() == javafx.scene.input.KeyCode.DELETE
+                    || e.getCode() == javafx.scene.input.KeyCode.BACK_SPACE) {
+                if (!selectedClipIndices.isEmpty()) deleteSelectedClips();
+            }
+        });
+
         loadClipsFromFavourites();
     }
 
