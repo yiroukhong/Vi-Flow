@@ -118,9 +118,10 @@ public class VideoController {
     // STATE
     // =========================================================
 
-    private List<String>              clipPaths         = new ArrayList<>();
-    private final List<StackPane>     clipCards         = new ArrayList<>();
-    private List<String>              libraryPaths      = new ArrayList<>();
+    private List<String>                              clipPaths     = new ArrayList<>();
+    private final List<StackPane>                     clipCards     = new ArrayList<>();
+    private final List<javafx.scene.shape.Rectangle> clipSelRects  = new ArrayList<>();
+    private List<String>                              libraryPaths  = new ArrayList<>();
     private int                       selectedClipIndex = -1;
     private final Set<Integer>        selectedClipIndices = new HashSet<>();
     private String                    lastVideoPath     = null;
