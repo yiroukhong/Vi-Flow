@@ -236,6 +236,8 @@ public class VideoController {
         File selected = chooser.showOpenDialog(stage);
         if (selected == null) return;
         overlayImagePath = selected.getAbsolutePath();
+        cachedGraphicPath = null;
+        cachedGraphicImage = null;
         overlayImageLabel.setText(selected.getName());
         overlayImageLabel.setStyle(
                 "-fx-font-size:10;-fx-text-fill:#1F1B16;-fx-max-width:160;-fx-wrap-text:true;");
