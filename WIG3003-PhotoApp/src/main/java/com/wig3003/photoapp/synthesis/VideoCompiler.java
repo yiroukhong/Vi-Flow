@@ -92,14 +92,14 @@ public class VideoCompiler {
         // Transition frames: 12 per boundary, written (N-1) times
         int transFramesTotal = transition.equals("NONE") ? 0 : (imagePaths.size() - 1) * 12;
         VideoWriter writer    = new VideoWriter();
-        int         fourcc    = VideoWriter.fourcc('M', 'J', 'P', 'G');
+        int         fourcc    = VideoWriter.fourcc('m', 'p', '4', 'v');
         Size        frameSize = new Size(FRAME_WIDTH, FRAME_HEIGHT);
 
         writer.open(outPath, fourcc, (double) fps, frameSize, true);
 
         if (!writer.isOpened()) {
             throw new IOException("VideoWriter failed to open: " + outPath
-                    + " — check MJPEG codec is available on this machine");
+                    + " — check mp4v codec is available on this machine");
         }
 
         // 4. Process each image

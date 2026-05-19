@@ -590,9 +590,9 @@ public class VideoController {
 
         FileChooser chooser = new FileChooser();
         chooser.setTitle("Export video");
-        chooser.setInitialFileName("video_export.avi");
+        chooser.setInitialFileName("video_export.mp4");
         chooser.getExtensionFilters().add(
-                new FileChooser.ExtensionFilter("AVI Video", "*.avi"));
+                new FileChooser.ExtensionFilter("MP4 Video", "*.mp4"));
 
         Stage stage = getStage();
         if (stage == null) return;
