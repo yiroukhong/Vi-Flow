@@ -108,4 +108,13 @@
       </plugin>
     </plugins>
   </build>
+  <pluginRepositories>
+  <pluginRepository>
+    <id>central</id>
+    <url>https://repo.maven.apache.org/maven2</url>
+    <snapshots>
+      <enabled>false</enabled>
+    </snapshots>
+  </pluginRepository>
+</pluginRepositories>
 </project>

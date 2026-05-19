@@ -1,7 +1,9 @@
 package com.wig3003.photoapp.synthesis;
 
+import com.wig3003.photoapp.ui.MainController;
 import com.wig3003.photoapp.util.FavouritesManager;
 import com.wig3003.photoapp.util.ImageUtils;
+import com.wig3003.photoapp.util.SaveHelper;
 
 import javafx.application.Platform;
 import javafx.fxml.FXML;
@@ -53,6 +55,13 @@ public class MosaicController {
     @FXML private Label      gridInfoLabel;
 
     // =========================================================
+    // FXML — TARGET IMAGE
+    // =========================================================
+
+    @FXML private Label     targetImageLabel;
+    @FXML private ImageView targetPreview;
+
+    // =========================================================
     // FXML — RIGHT PANEL: TILE POOL
     // =========================================================
 
@@ -64,12 +73,8 @@ public class MosaicController {
     // FXML — RIGHT PANEL: GRID
     // =========================================================
 
-    @FXML private Slider columnsSlider;
-    @FXML private Label  columnsLabel;
     @FXML private Slider tileSizeSlider;
     @FXML private Label  tileSizeLabel;
-    @FXML private Slider tileGapSlider;
-    @FXML private Label  tileGapLabel;
 
     // =========================================================
     // FXML — RIGHT PANEL: GENERATE
@@ -81,12 +86,14 @@ public class MosaicController {
     // STATE
     // =========================================================
 
-    private List<String> tilePaths      = new ArrayList<>();
-    private List<String> libraryPaths   = new ArrayList<>();
-    private String       lastMosaicPath = null;
+    private MainController mainController = null;
+
+    private List<String> tilePaths        = new ArrayList<>();
+    private List<String> libraryPaths     = new ArrayList<>();
+    private String       targetPath       = null;
+    private String       lastMosaicPath   = null;
     private Thread       generationThread = null;
 
-    /** Background executor for loading thumbnails — daemon so JVM exits cleanly. */
     private final ExecutorService thumbnailExecutor =
             Executors.newCachedThreadPool(r -> {
                 Thread t = new Thread(r, "mosaic-thumb");
@@ -100,14 +107,8 @@ public class MosaicController {
 
     @FXML
     public void initialize() {
-        columnsSlider.valueProperty().addListener((obs, ov, nv) ->
-                columnsLabel.setText(String.valueOf(nv.intValue())));
-
         tileSizeSlider.valueProperty().addListener((obs, ov, nv) ->
                 tileSizeLabel.setText(nv.intValue() + " px"));
-
-        tileGapSlider.valueProperty().addListener((obs, ov, nv) ->
-                tileGapLabel.setText(nv.intValue() + " px"));
 
         checkerCanvas.widthProperty().bind(mosaicCheckerPane.widthProperty());
         checkerCanvas.heightProperty().bind(mosaicCheckerPane.heightProperty());
@@ -121,9 +122,39 @@ public class MosaicController {
     // PUBLIC API
     // =========================================================
 
-    /** Called by MainController when navigating to the Mosaic page. */
     public void setLibraryPaths(List<String> paths) {
         this.libraryPaths = paths != null ? new ArrayList<>(paths) : new ArrayList<>();
+    }
+
+    public void setMainController(MainController mc) {
+        this.mainController = mc;
+    }
+
+    // =========================================================
+    // TARGET IMAGE PICKER
+    // =========================================================
+
+    @FXML
+    private void handleSelectTarget() {
+        FileChooser chooser = new FileChooser();
+        chooser.setTitle("Select target image");
+        chooser.getExtensionFilters().add(
+                new FileChooser.ExtensionFilter("Image Files",
+                        "*.jpg", "*.jpeg", "*.png", "*.bmp", "*.webp", "*.tiff", "*.tif"));
+
+        Stage stage = getStage();
+        if (stage == null) return;
+
+        File file = chooser.showOpenDialog(stage);
+        if (file == null) return;
+
+        targetPath = file.getAbsolutePath();
+        targetImageLabel.setText(file.getName());
+
+        Image preview = new Image(file.toURI().toString(), 200, 200, true, true);
+        targetPreview.setImage(preview);
+        targetPreview.setVisible(true);
+        targetPreview.setManaged(true);
     }
 
     // =========================================================
@@ -131,12 +162,7 @@ public class MosaicController {
     // =========================================================
 
     private void loadTilePoolFromFavourites() {
-        List<String> paths;
-        try {
-            paths = FavouritesManager.getFavourites();
-        } catch (IOException e) {
-            paths = new ArrayList<>();
-        }
+        List<String> paths = FavouritesManager.getFavourites();
         applyTilePool(paths, "Favorites");
     }
 
@@ -231,18 +257,19 @@ public class MosaicController {
 
     @FXML
     private void handleGenerate() {
+        if (targetPath == null || targetPath.isBlank()) {
+            showError("No target image.", "Please select a target image first.");
+            return;
+        }
+
         if (tilePaths.isEmpty()) {
             showError("No tile images.", "Add images to your Favorites or choose a tile source.");
             return;
         }
 
-        final int          columns       = Math.max(1, (int) columnsSlider.getValue());
-        final int          tileSize      = Math.max(10, (int) tileSizeSlider.getValue());
-        final int          tileGap       = (int) tileGapSlider.getValue();
-        final List<String> capturedTiles = new ArrayList<>(tilePaths);
-        final int          estRows       = (int) Math.ceil((double) capturedTiles.size() / columns);
-        final String       infoText      = columns + " × " + estRows
-                + " grid · " + capturedTiles.size() + " tiles · " + tileSize + "px";
+        final int          tileSize       = Math.max(10, (int) tileSizeSlider.getValue());
+        final List<String> capturedTiles  = new ArrayList<>(tilePaths);
+        final String       capturedTarget = targetPath;
 
         progressLabel.setText("Generating…");
         progressLabel.setVisible(true);
@@ -253,8 +280,9 @@ public class MosaicController {
 
         generationThread = new Thread(() -> {
             try {
+                // Contract §6 — correct 3-argument signature
                 String resultPath = new MosaicGenerator()
-                        .generateMosaic(capturedTiles, columns, tileSize, tileGap);
+                        .generateMosaic(capturedTiles, capturedTarget, tileSize);
 
                 if (Thread.interrupted()) return;
 
@@ -267,7 +295,7 @@ public class MosaicController {
                     lastMosaicPath = finalPath;
                     mosaicView.setImage(wi);
                     placeholderLabel.setVisible(false);
-                    gridInfoLabel.setText(infoText);
+                    gridInfoLabel.setText(capturedTiles.size() + " tiles · " + tileSize + "px");
                     resetGenerationUI();
                 });
 
@@ -320,25 +348,13 @@ public class MosaicController {
             showWarning("No mosaic to export.", "Generate a mosaic first.");
             return;
         }
-
-        FileChooser chooser = new FileChooser();
-        chooser.setTitle("Export mosaic");
-        chooser.setInitialFileName("mosaic_export.png");
-        chooser.getExtensionFilters().add(
-                new FileChooser.ExtensionFilter("PNG Image", "*.png"));
-
         Stage stage = getStage();
         if (stage == null) return;
-
-        File dest = chooser.showSaveDialog(stage);
-        if (dest == null) return;
-
-        try {
-            Files.copy(Paths.get(lastMosaicPath), dest.toPath(),
-                    StandardCopyOption.REPLACE_EXISTING);
-            showInfo("Exported successfully.", "Saved to: " + dest.getAbsolutePath());
-        } catch (IOException e) {
-            showError("Export failed.", e.getMessage());
+        String saved = SaveHelper.promptSaveDestination(
+                lastMosaicPath, "Export Mosaic", "PNG Image", "*.png",
+                "mosaic_export.png", mainController, stage);
+        if (saved != null) {
+            showInfo("Exported successfully.", "Saved to: " + saved);
         }
     }
 

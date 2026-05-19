@@ -56,7 +56,6 @@ public class DipEditController {
     @FXML private Button tabAesthetic;
     @FXML private Button tabGeometric;
     @FXML private Button tabExtraction;
-    @FXML private Button tabObject;
 
     // ── STYLES ────────────────────────────────────────────────────────────
 
@@ -93,6 +92,12 @@ public class DipEditController {
     /** Image path passed from MainController. Null if none selected. */
     private String pendingImagePath = null;
 
+    /** Library paths passed from MainController. Empty until set. */
+    private java.util.List<String> libraryPaths = new java.util.ArrayList<>();
+
+    /** MainController reference for Save-to-Library propagation. */
+    private com.wig3003.photoapp.ui.MainController mainController = null;
+
     // ── INITIALIZE ────────────────────────────────────────────────────────
 
     @FXML
@@ -110,6 +115,24 @@ public class DipEditController {
      */
     public void setInitialImage(String path) {
         this.pendingImagePath = path;
+    }
+
+    /** Called by MainController to pass the full library path list. */
+    public void setLibraryPaths(java.util.List<String> paths) {
+        this.libraryPaths = paths != null ? paths : new java.util.ArrayList<>();
+    }
+
+    /** Called by MainController to wire save-to-library callbacks. Propagates to cached tabs. */
+    public void setMainController(com.wig3003.photoapp.ui.MainController mc) {
+        this.mainController = mc;
+        for (Object ctrl : cachedControllers.values()) {
+            passMainControllerToCtrl(ctrl);
+        }
+    }
+
+    private void passMainControllerToCtrl(Object ctrl) {
+        if (ctrl instanceof DipGeometricController)
+            ((DipGeometricController) ctrl).setMainController(mainController);
     }
 
     /**
@@ -151,7 +174,6 @@ public class DipEditController {
     @FXML private void handleTabAesthetic()   { loadTab("Aesthetic");   }
     @FXML private void handleTabGeometric()   { loadTab("Geometric");   }
     @FXML private void handleTabExtraction()  { loadTab("Extraction");  }
-    @FXML private void handleTabObject()      { loadTab("Object");      }
 
     // ── LOAD / SWAP TAB ───────────────────────────────────────────────────
 
@@ -198,6 +220,9 @@ public class DipEditController {
                 cachedRoots.put(tab, panel);
                 if (ctrl != null) cachedControllers.put(tab, ctrl);
 
+                // Always propagate mainController on first load
+                if (ctrl != null) passMainControllerToCtrl(ctrl);
+
                 // Pass image path on first load only
                 if (pendingImagePath != null) {
                     passImageToController(tab, ctrl);
@@ -205,6 +230,10 @@ public class DipEditController {
 
             } catch (Exception e) {
                 e.printStackTrace();
+                activeTab = tab;
+                setActiveTabStyle(tab);
+                if (titleLabel != null) titleLabel.setText("Edit · " + tab);
+                if (statusLabel != null) statusLabel.setText("Load error");
                 showPlaceholder(tab + " (load error: " + e.getMessage() + ")");
                 return;
             }
@@ -242,21 +271,27 @@ public class DipEditController {
         try {
             if (tab.equals("Geometric")
                     && ctrl instanceof DipGeometricController) {
-                ((DipGeometricController) ctrl)
-                        .loadImageFromPath(pendingImagePath);
+                DipGeometricController c = (DipGeometricController) ctrl;
+                c.setLibraryPaths(libraryPaths);
+                c.loadImageFromPath(pendingImagePath);
 
             } else if (tab.equals("Extraction")
                     && ctrl instanceof DipExtractController) {
-                ((DipExtractController) ctrl)
-                        .loadImageFromPath(pendingImagePath);
+                DipExtractController c = (DipExtractController) ctrl;
+                c.setLibraryPaths(libraryPaths);
+                c.loadImageFromPath(pendingImagePath);
+
             } else if (tab.equals("Radiometric")
                     && ctrl instanceof DipRadiometricController) {
-                ((DipRadiometricController) ctrl)
-                        .loadImageFromPath(pendingImagePath);
+                DipRadiometricController c = (DipRadiometricController) ctrl;
+                c.setLibraryPaths(libraryPaths);
+                c.loadImageFromPath(pendingImagePath);
+
             } else if (tab.equals("Aesthetic")
                     && ctrl instanceof DipAestheticController) {
-                ((DipAestheticController) ctrl)
-                        .loadImageFromPath(pendingImagePath);
+                DipAestheticController c = (DipAestheticController) ctrl;
+                c.setLibraryPaths(libraryPaths);
+                c.loadImageFromPath(pendingImagePath);
             }
         } catch (Exception e) {
             e.printStackTrace();
@@ -271,7 +306,6 @@ public class DipEditController {
             case "Extraction":  return "DipExtract.fxml";
             case "Radiometric": return "DipRadiometric.fxml";
             case "Aesthetic":   return "DipAesthetic.fxml";
-            case "Object":      return null;
             default:            return null;
         }
     }
@@ -292,13 +326,11 @@ public class DipEditController {
         tabAesthetic.setStyle(STYLE_INACTIVE);
         tabGeometric.setStyle(STYLE_INACTIVE);
         tabExtraction.setStyle(STYLE_INACTIVE);
-        tabObject.setStyle(STYLE_INACTIVE);
         switch (tab) {
             case "Radiometric": tabRadiometric.setStyle(STYLE_ACTIVE); break;
             case "Aesthetic":   tabAesthetic.setStyle(STYLE_ACTIVE);   break;
             case "Geometric":   tabGeometric.setStyle(STYLE_ACTIVE);   break;
             case "Extraction":  tabExtraction.setStyle(STYLE_ACTIVE);  break;
-            case "Object":      tabObject.setStyle(STYLE_ACTIVE);      break;
         }
     }
 }

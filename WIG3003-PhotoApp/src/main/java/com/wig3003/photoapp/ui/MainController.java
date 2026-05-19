@@ -10,6 +10,7 @@ import java.util.ResourceBundle;
 import java.util.Set;
 
 import com.wig3003.photoapp.model.MetadataStore;
+import com.wig3003.photoapp.util.FavouritesManager;
 import com.wig3003.photoapp.util.ImageUtils;
 
 import javafx.animation.PauseTransition;
@@ -38,7 +39,17 @@ import javafx.scene.layout.VBox;
 import javafx.scene.paint.Color;
 import javafx.scene.shape.Rectangle;
 import javafx.scene.shape.StrokeType;
+import javafx.scene.control.Alert;
+import javafx.scene.control.ButtonType;
+import javafx.scene.control.ContextMenu;
+import javafx.scene.control.MenuItem;
+import javafx.scene.control.SeparatorMenuItem;
 import javafx.stage.DirectoryChooser;
+import javafx.stage.FileChooser;
+import java.nio.file.Files;
+import java.nio.file.Paths;
+import java.nio.file.StandardCopyOption;
+import org.kordamp.ikonli.javafx.FontIcon;
 
 // CW: added imports for DipEdit navigation
 import com.wig3003.photoapp.dip.DipEditController;
@@ -59,6 +70,7 @@ public class MainController implements Initializable {
     @FXML private HBox navLibrary;
     @FXML private HBox navFavorites;
     @FXML private HBox navAnnotated;
+    @FXML private HBox navEdit;
     @FXML private Label countLibrary;
     @FXML private Label countFavorites;
     @FXML private Label countAnnotated;
@@ -74,6 +86,10 @@ public class MainController implements Initializable {
     @FXML private ScrollPane gridScrollPane;
     @FXML private TilePane photoGrid;
     @FXML private VBox emptyState;
+    @FXML private VBox emptyStateFiltered;
+    @FXML private FontIcon emptyFilteredIcon;
+    @FXML private Label emptyFilteredTitle;
+    @FXML private Label emptyFilteredBody;
 
     // Detail view
     @FXML private VBox detailView;
@@ -82,24 +98,37 @@ public class MainController implements Initializable {
     @FXML private Button heartButton;
     @FXML private StackPane detailImageArea;
     @FXML private ImageView detailImageView;
-    @FXML private TextArea annotationField;
+    @FXML private Button importBtn;
+
+    // Annotation side panel
+    @FXML private VBox annotationPanel;
+    @FXML private Label panelFilename;
+    @FXML private VBox existingAnnotationBox;
+    @FXML private Label existingAnnotationText;
+    @FXML private Label existingAnnotationDate;
+    @FXML private VBox addNoteBox;
+    @FXML private Label addNoteLabel;
+    @FXML private TextArea annotationTextArea;
     @FXML private Label annotationFeedbackLabel;
+    @FXML private Button annotationSaveBtn;
+
+    private String previousFilter = "ALL";
 
     // ── State ─────────────────────────────────────────────────────────────────
 
     private static final String[] IMAGE_EXTS =
             { ".jpg", ".jpeg", ".png", ".bmp", ".gif", ".webp", ".tiff", ".tif", ".heic" };
 
-    private final List<String>     allPaths         = new ArrayList<>();
-    private final List<String>     displayPaths     = new ArrayList<>();
-    private final Set<String>      favourites       = new HashSet<>();
-    private final Set<Integer>     selectedIndices  = new HashSet<>();
+    private final List<String>     allPaths          = new ArrayList<>();
+    private final List<String>     displayPaths      = new ArrayList<>();
+    private final Set<String>      favourites        = new HashSet<>();
+    private final Set<Integer>     selectedIndices   = new HashSet<>();
     private final List<Rectangle>  selectionOverlays = new ArrayList<>();
 
     /** Currently selected index into displayPaths (-1 = none). */
     private int selectedIndex = -1;
 
-    /** Absolute path of the image shown in the detail view (null when in library view). */
+    /** Absolute path of the image shown in the detail/panel view (null when none). */
     private String currentPath;
 
     /** Which nav filter is active: ALL | FAVOURITES | ANNOTATED */
@@ -128,8 +157,6 @@ public class MainController implements Initializable {
     @FXML private HBox            navShare;
 
     // cached BorderPane root - stored once scene is available
-    // Safe to use anytime unlike libraryView.getScene() which returns
-    // null when libraryView is swapped out of the BorderPane center
     private BorderPane mainRoot;
     // CW: change end
 
@@ -137,12 +164,12 @@ public class MainController implements Initializable {
 
     @Override
     public void initialize(URL location, ResourceBundle resources) {
-        // Bind tile width to the scroll pane's width so tiles stay 5-per-row
-        gridScrollPane.widthProperty().addListener((obs, old, w) -> {
-            double available = w.doubleValue() - 32; // 16px padding each side
-            thumbSize = Math.max(100, (available - 4 * 8) / 5); // 4 gaps of 8px
+
+        // Bind tile width to scroll pane width so tiles stay 5-per-row
+        gridScrollPane.widthProperty().addListener((gridObs, gridOld, gridW) -> {
+            double available = gridW.doubleValue() - 32;
+            thumbSize = Math.max(100, (available - 4 * 8) / 5);
             photoGrid.setPrefTileWidth(thumbSize);
-            photoGrid.setPrefTileHeight(thumbSize);
         });
 
         // Bind detail ImageView size to its container
@@ -151,21 +178,29 @@ public class MainController implements Initializable {
         detailImageView.fitHeightProperty().bind(
                 detailImageArea.heightProperty().subtract(48));
 
-        // CW: cache the BorderPane root once the scene is attached
-            // so navigateToDipEdit and showLibraryView can always access it
-            // even when libraryView is removed from the scene center
-        libraryView.sceneProperty().addListener((obs, oldScene, newScene) -> {
+        // Cache the BorderPane root once the scene is attached
+        libraryView.sceneProperty().addListener((sceneObs, oldScene, newScene) -> {
             if (newScene != null && mainRoot == null) {
                 mainRoot = (BorderPane) newScene.getRoot();
+                newScene.setOnKeyPressed(e -> handleKeyPress(e.getCode()));
             }
         });
-        // CW: change end
 
-        // CW: load saved Vi-Flow library images on startup
+        // Load saved library images on startup
         loadAppLibrary();
-        // CW: change end
 
         shareViewController.setMainController(this);
+        mosaicViewController.setMainController(this);
+
+        // Import button context menu
+        ContextMenu importMenu = new ContextMenu();
+        MenuItem miFiles  = new MenuItem("Import files");
+        MenuItem miFolder = new MenuItem("Import folder");
+        miFiles.setOnAction(e -> handleImport());
+        miFolder.setOnAction(e -> handleImportFolder());
+        importMenu.getItems().addAll(miFiles, miFolder);
+        importBtn.setOnMouseClicked(e ->
+                importMenu.show(importBtn, javafx.geometry.Side.BOTTOM, 0, 0));
     }
 
     // ── Navigation ────────────────────────────────────────────────────────────
@@ -174,9 +209,13 @@ public class MainController implements Initializable {
     private void handleNavLibrary() {
         setNavActive(navLibrary);
         activeFilter = "ALL";
-        // CW: refresh app library images saved by Geometric / Extraction
-        loadAppLibrary();
-        // CW: change end
+        filterAll.setSelected(true); // Ensure filter toggle visually switches to 'All'
+        
+        // Sync just the favorites in case they were changed in the video/mosaic modules
+        favourites.clear();
+        favourites.addAll(FavouritesManager.getFavourites());
+        applyFilter();
+        
         showLibraryView();
     }
 
@@ -185,7 +224,12 @@ public class MainController implements Initializable {
         setNavActive(navFavorites);
         activeFilter = "FAVOURITES";
         filterFavorites.setSelected(true);
+        
+        // Ensure favorites are up to date
+        favourites.clear();
+        favourites.addAll(FavouritesManager.getFavourites());
         applyFilter();
+        
         showLibraryView();
     }
 
@@ -198,9 +242,6 @@ public class MainController implements Initializable {
         showLibraryView();
     }
 
-    // Stub handlers for STUDIO items — other modules will wire these
-    
-    
 // =========Chyntia: Edit begin
     // CW: loads images saved by Save to Library into the app Library page
     private void loadAppLibrary() {
@@ -210,6 +251,10 @@ public class MainController implements Initializable {
         selectedCountLabel.setText("");
 
         allPaths.addAll(MetadataStore.getInstance().getLibraryPaths());
+        
+        // Sync in-memory favourites with FavouritesManager
+        favourites.clear();
+        favourites.addAll(FavouritesManager.getFavourites());
 
         applyFilter();
         updateCounts();
@@ -228,10 +273,11 @@ public class MainController implements Initializable {
 
     // CW: new method - load DipEdit once, swap BorderPane center
     private void navigateToDipEdit(String tabName) {
+        hideAnnotationPanel();
         // CW: use cached mainRoot - never call libraryView.getScene()
         // here because libraryView may already be detached from the scene
         if (mainRoot == null) return;
- 
+
         try {
             if (dipEditRoot == null) {
                 FXMLLoader loader = new FXMLLoader(
@@ -239,18 +285,21 @@ public class MainController implements Initializable {
                                 "/com/wig3003/photoapp/fxml/DipEdit.fxml"));
                 dipEditRoot       = loader.load();
                 dipEditController = (DipEditController) loader.getController();
+                dipEditController.setMainController(this);
             }
- 
+
             String pathToPass = currentPath != null ? currentPath
                     : (selectedIndex >= 0 && selectedIndex < displayPaths.size()
                             ? displayPaths.get(selectedIndex) : null);
- 
+
             if (pathToPass != null)
                 dipEditController.setInitialImage(pathToPass);
- 
+
+            dipEditController.setLibraryPaths(new ArrayList<>(allPaths));
             dipEditController.selectTab(tabName);
             mainRoot.setCenter(dipEditRoot);
- 
+            setNavActive(navEdit);
+
         } catch (Exception e) {
             e.printStackTrace();
         }
@@ -269,11 +318,11 @@ public class MainController implements Initializable {
     }
     // CW: change end
 
-    
 // =========Chyntia: Edit end
 
     @FXML
     private void handleNavMosaic() {
+        hideAnnotationPanel();
         // If DipEdit replaced the center, restore the StackPane first
         if (mainRoot != null && dipEditRoot != null
                 && mainRoot.getCenter() == dipEditRoot) {
@@ -295,6 +344,7 @@ public class MainController implements Initializable {
 
     @FXML
     private void handleNavVideo() {
+        hideAnnotationPanel();
         // If DipEdit replaced the center, restore the StackPane first
         if (mainRoot != null && dipEditRoot != null
                 && mainRoot.getCenter() == dipEditRoot) {
@@ -313,8 +363,10 @@ public class MainController implements Initializable {
         videoViewController.setLibraryPaths(new ArrayList<>(allPaths));
         setNavActive(navVideo);
     }
+
     @FXML
     public void handleNavShare() {
+        hideAnnotationPanel();
         if (mainRoot != null && dipEditRoot != null
                 && mainRoot.getCenter() == dipEditRoot) {
             restoreLibraryCenter();
@@ -333,7 +385,7 @@ public class MainController implements Initializable {
     }
 
     private void setNavActive(HBox active) {
-        for (HBox item : List.of(navLibrary, navFavorites, navAnnotated, navMosaic, navVideo, navShare)) {
+        for (HBox item : List.of(navLibrary, navFavorites, navAnnotated, navEdit, navMosaic, navVideo, navShare)) {
             item.getStyleClass().remove("nav-active");
         }
         active.getStyleClass().add("nav-active");
@@ -343,49 +395,55 @@ public class MainController implements Initializable {
 
     @FXML
     private void handleImport() {
-        openDirectoryChooser();
+        FileChooser chooser = new FileChooser();
+        chooser.setTitle("Select Images");
+        chooser.getExtensionFilters().add(new FileChooser.ExtensionFilter(
+                "Image files", "*.png", "*.jpg", "*.jpeg", "*.bmp", "*.gif"));
+        List<File> files = chooser.showOpenMultipleDialog(
+                gridScrollPane.getScene().getWindow());
+        if (files == null || files.isEmpty()) return;
+        List<String> paths = new ArrayList<>();
+        for (File f : files) paths.add(f.getAbsolutePath());
+        addFilesToLibrary(paths);
+    }
+
+    @FXML
+    private void handleImportFolder() {
+        DirectoryChooser chooser = new DirectoryChooser();
+        chooser.setTitle("Select Photo Folder");
+        File dir = chooser.showDialog(gridScrollPane.getScene().getWindow());
+        if (dir == null) return;
+        File[] files = dir.listFiles(f -> f.isFile() && isImageFile(f.getName()));
+        if (files == null) return;
+        Arrays.sort(files, (a, b) -> a.getName().compareToIgnoreCase(b.getName()));
+        List<String> paths = new ArrayList<>();
+        for (File f : files) paths.add(f.getAbsolutePath());
+        addFilesToLibrary(paths);
     }
 
     @FXML
     private void handleBrowse() {
-        openDirectoryChooser();
+        handleImport();
     }
 
-    private void openDirectoryChooser() {
-        DirectoryChooser chooser = new DirectoryChooser();
-        chooser.setTitle("Select Photo Folder");
-        File dir = chooser.showDialog(gridScrollPane.getScene().getWindow());
-        if (dir != null) {
-            loadFolder(dir);
+    private void addFilesToLibrary(List<String> newPaths) {
+        for (String p : newPaths) {
+            if (!allPaths.contains(p)) allPaths.add(p);
         }
-    }
-
-    private void loadFolder(File dir) {
-        allPaths.clear();
-        selectedIndex = -1;
-        selectedCountLabel.setText("");
-
-        File[] files = dir.listFiles(f ->
-                f.isFile() && isImageFile(f.getName()));
-        if (files != null) {
-            Arrays.sort(files, (a, b) -> a.getName().compareToIgnoreCase(b.getName()));
-            for (File f : files) {
-                allPaths.add(f.getAbsolutePath());
-            }
-        }
-
-        // CW: remember imported folder images as app library images
         MetadataStore.getInstance().saveLibraryImagePaths(allPaths);
-        // CW: change end
-
-
         applyFilter();
         updateCounts();
     }
 
-    
-
-
+    public void addToLibrary(String absolutePath) {
+        if (absolutePath == null || absolutePath.isBlank()) return;
+        if (!allPaths.contains(absolutePath)) {
+            allPaths.add(absolutePath);
+            MetadataStore.getInstance().saveLibraryImagePath(absolutePath);
+            applyFilter();
+            updateCounts();
+        }
+    }
 
     private boolean isImageFile(String name) {
         String lower = name.toLowerCase();
@@ -399,7 +457,7 @@ public class MainController implements Initializable {
 
     @FXML
     private void handleFilter() {
-        if (filterAll.isSelected())        activeFilter = "ALL";
+        if (filterAll.isSelected())            activeFilter = "ALL";
         else if (filterAnnotated.isSelected()) activeFilter = "ANNOTATED";
         else if (filterFavorites.isSelected()) activeFilter = "FAVOURITES";
         else if (filterRecent.isSelected())    activeFilter = "RECENT";
@@ -414,8 +472,8 @@ public class MainController implements Initializable {
 
         for (String p : allPaths) {
             switch (activeFilter) {
-                case "FAVOURITES": if (favourites.contains(p))  displayPaths.add(p); break;
-                case "ANNOTATED":  if (MetadataStore.getInstance().hasAnnotation(p)) displayPaths.add(p); break;
+                case "FAVOURITES": if (favourites.contains(p))                         displayPaths.add(p); break;
+                case "ANNOTATED":  if (MetadataStore.getInstance().hasAnnotation(p))   displayPaths.add(p); break;
                 case "RECENT":     displayPaths.add(p); break; // TODO: sort by mtime
                 default:           displayPaths.add(p); break;
             }
@@ -447,7 +505,7 @@ public class MainController implements Initializable {
         selectionOverlays.clear();
 
         if (displayPaths.isEmpty()) {
-            showEmptyState(true);
+            showAppropriateEmptyState();
             return;
         }
 
@@ -457,11 +515,37 @@ public class MainController implements Initializable {
         }
     }
 
+    private void showAppropriateEmptyState() {
+        if ("FAVOURITES".equals(activeFilter)) {
+            showFilteredEmptyState("bi-heart", "No favourites yet",
+                    "Nothing here yet. Mark images as favourites in the library to see them here.");
+        } else if ("ANNOTATED".equals(activeFilter)) {
+            showFilteredEmptyState("bi-pencil-square", "No annotated images yet",
+                    "Nothing here yet. Open an image in the library and add an annotation to see it here.");
+        } else {
+            showEmptyState(true);
+        }
+    }
+
+    private void showFilteredEmptyState(String icon, String title, String body) {
+        emptyFilteredIcon.setIconLiteral(icon);
+        emptyFilteredTitle.setText(title);
+        emptyFilteredBody.setText(body);
+        emptyState.setVisible(false);
+        emptyState.setManaged(false);
+        gridScrollPane.setVisible(false);
+        gridScrollPane.setManaged(false);
+        emptyStateFiltered.setVisible(true);
+        emptyStateFiltered.setManaged(true);
+    }
+
     private void showEmptyState(boolean empty) {
         emptyState.setVisible(empty);
         emptyState.setManaged(empty);
         gridScrollPane.setVisible(!empty);
         gridScrollPane.setManaged(!empty);
+        emptyStateFiltered.setVisible(false);
+        emptyStateFiltered.setManaged(false);
     }
 
     private Node createThumbnailCell(String path, int index) {
@@ -486,7 +570,6 @@ public class MainController implements Initializable {
         iv.setPreserveRatio(false);
         iv.setSmooth(true);
         cell.getChildren().add(iv);
-        
 
         // Heart badge (shown when favourited)
         if (favourites.contains(path)) {
@@ -510,17 +593,157 @@ public class MainController implements Initializable {
         cell.getChildren().add(selectionOverlay);
         selectionOverlays.add(selectionOverlay);
 
-        // Click handlers
+        // Single-click: select + open annotation panel
+        // Double-click: open full detail view (panel also shown)
         cell.setOnMouseClicked(e -> {
             if (e.getButton() != MouseButton.PRIMARY) return;
             if (e.getClickCount() == 1) {
                 selectImage(index, e.isShiftDown());
+                openAnnotationPanel(index);
             } else if (e.getClickCount() == 2) {
                 openDetail(index);
             }
         });
 
-        return cell;
+        // Right-click context menu
+        String filename = Paths.get(path).getFileName().toString();
+        ContextMenu ctxMenu = new ContextMenu();
+
+        MenuItem exportItem = new MenuItem("Export to device");
+        exportItem.setOnAction(e -> {
+            if (selectedIndices.contains(index) && selectedIndices.size() > 1) {
+                DirectoryChooser dc = new DirectoryChooser();
+                dc.setTitle("Export " + selectedIndices.size() + " images to folder");
+                File dir = dc.showDialog(cell.getScene().getWindow());
+                if (dir != null) {
+                    int success = 0, failed = 0;
+                    for (int idx : selectedIndices) {
+                        String p = displayPaths.get(idx);
+                        String fname = Paths.get(p).getFileName().toString();
+                        try {
+                            Files.copy(Paths.get(p), dir.toPath().resolve(fname),
+                                    StandardCopyOption.REPLACE_EXISTING);
+                            success++;
+                        } catch (java.io.IOException ex) {
+                            failed++;
+                        }
+                    }
+                    Alert info = new Alert(failed == 0 ? Alert.AlertType.INFORMATION : Alert.AlertType.WARNING);
+                    info.setTitle("Export");
+                    info.setHeaderText(null);
+                    info.setContentText(success + " image(s) exported successfully." +
+                            (failed > 0 ? " " + failed + " failed." : ""));
+                    info.showAndWait();
+                }
+            } else {
+                FileChooser fc = new FileChooser();
+                fc.setTitle("Export image");
+                fc.setInitialFileName(filename);
+                fc.getExtensionFilters().add(
+                        new FileChooser.ExtensionFilter("Image files",
+                                "*.png", "*.jpg", "*.jpeg", "*.bmp"));
+                File dest = fc.showSaveDialog(cell.getScene().getWindow());
+                if (dest != null) {
+                    try {
+                        Files.copy(Paths.get(path), dest.toPath(), StandardCopyOption.REPLACE_EXISTING);
+                        Alert info = new Alert(Alert.AlertType.INFORMATION);
+                        info.setTitle("Export");
+                        info.setHeaderText(null);
+                        info.setContentText("Exported successfully.");
+                        info.showAndWait();
+                    } catch (java.io.IOException ex) {
+                        Alert err = new Alert(Alert.AlertType.ERROR);
+                        err.setTitle("Export failed");
+                        err.setHeaderText(null);
+                        err.setContentText("Could not export: " + ex.getMessage());
+                        err.showAndWait();
+                    }
+                }
+            }
+        });
+
+        // REPLACED MULTIPLE FAVOURITE LOGIC
+        MenuItem favItem = new MenuItem();
+        favItem.setOnAction(e -> {
+            Set<Integer> toToggle = (selectedIndices.contains(index) && selectedIndices.size() > 1)
+                    ? new HashSet<>(selectedIndices) : new HashSet<>();
+            if (toToggle.isEmpty()) toToggle.add(index);
+            
+            boolean allFav = toToggle.stream().allMatch(i -> favourites.contains(displayPaths.get(i)));
+            List<String> pathsToUpdate = new ArrayList<>();
+            
+            for (int i : toToggle) {
+                String p = displayPaths.get(i);
+                pathsToUpdate.add(p);
+                if (allFav) {
+                    favourites.remove(p);
+                } else {
+                    favourites.add(p);
+                }
+            }
+            
+            // Actually save to disk using FavouritesManager
+            if (allFav) {
+                FavouritesManager.removeFavourites(pathsToUpdate);
+            } else {
+                FavouritesManager.addFavourites(pathsToUpdate);
+            }
+            
+            // Queue UI refresh to happen safely after the menu event finishes
+            Platform.runLater(() -> {
+                updateCounts();
+                
+                if ("FAVOURITES".equals(activeFilter) && allFav) {
+                    // Only rebuild the grid if we are currently looking at the Favorites filter
+                    // and we just successfully removed images, so they disappear visually.
+                    applyFilter();
+                } else {
+                    // Smoothly update just the badges without rebuilding the layout
+                    for (int i : toToggle) {
+                        updateThumbnailBadges(i);
+                    }
+                }
+                
+                // Sync heart button if the current detail view image is affected
+                if (currentPath != null && pathsToUpdate.contains(currentPath)) {
+                    boolean nowFav = favourites.contains(currentPath);
+                    heartButton.setText(nowFav ? "♥" : "♡");
+                    if (nowFav) heartButton.getStyleClass().add("active");
+                    else heartButton.getStyleClass().remove("active");
+                }
+            });
+        });
+
+        MenuItem deleteItem = new MenuItem("Remove from library");
+        deleteItem.setStyle("-fx-text-fill: #B0432B;");
+        deleteItem.setOnAction(e -> {
+            if (!selectedIndices.contains(index)) selectImage(index);
+            deleteSelectedImages();
+        });
+
+        ctxMenu.getItems().addAll(exportItem, favItem, new SeparatorMenuItem(), deleteItem);
+        cell.setOnContextMenuRequested(e -> {
+            Set<Integer> affected = (selectedIndices.contains(index) && selectedIndices.size() > 1)
+                    ? new HashSet<>(selectedIndices) : new HashSet<>();
+            if (affected.isEmpty()) affected.add(index);
+            boolean allFav = affected.stream().allMatch(i -> favourites.contains(displayPaths.get(i)));
+            favItem.setText(allFav ? "Remove from favorites" : "Add to favorites");
+            ctxMenu.show(cell, e.getScreenX(), e.getScreenY());
+        });
+
+        // Filename label below thumbnail
+        Label nameLabel = new Label(filename);
+        nameLabel.getStyleClass().add("thumbnail-name-label");
+        nameLabel.setWrapText(true);
+        nameLabel.setMaxWidth(thumbSize);
+        nameLabel.setMaxHeight(34);
+        nameLabel.setAlignment(Pos.CENTER);
+
+        VBox wrapper = new VBox(cell, nameLabel);
+        wrapper.setAlignment(Pos.TOP_CENTER);
+        wrapper.setSpacing(0);
+        wrapper.setPrefWidth(thumbSize);
+        return wrapper;
     }
 
     private StackPane buildHeartBadge() {
@@ -545,6 +768,45 @@ public class MainController implements Initializable {
         return badge;
     }
 
+    private void updateThumbnailBadges(int index) {
+        // index is the position in displayPaths
+        // photoGrid children are VBox wrappers — one per displayPaths entry
+        // each VBox has: StackPane cell (index 0), Label nameLabel (index 1)
+        // the StackPane cell children are: ImageView, [badges...], selectionOverlay
+        // selectionOverlay is always the LAST child of the StackPane
+        if (index < 0 || index >= photoGrid.getChildren().size()) return;
+
+        Node wrapperNode = photoGrid.getChildren().get(index);
+        if (!(wrapperNode instanceof VBox)) return;
+        VBox wrapper = (VBox) wrapperNode;
+
+        if (wrapper.getChildren().isEmpty()) return;
+        Node cellNode = wrapper.getChildren().get(0);
+        if (!(cellNode instanceof StackPane)) return;
+        StackPane cell = (StackPane) cellNode;
+
+        String path = displayPaths.get(index);
+
+        // Remove everything between ImageView (index 0) and selectionOverlay (last)
+        List<Node> toRemove = new ArrayList<>();
+        for (int i = 1; i < cell.getChildren().size() - 1; i++) {
+            toRemove.add(cell.getChildren().get(i));
+        }
+        cell.getChildren().removeAll(toRemove);
+
+        // Re-insert badges just before the selectionOverlay
+        int insertAt = cell.getChildren().size() - 1;
+
+        if (favourites.contains(path)) {
+            cell.getChildren().add(insertAt, buildHeartBadge());
+            insertAt++;
+        }
+
+        if (MetadataStore.getInstance().hasAnnotation(path)) {
+            cell.getChildren().add(insertAt, buildAnnotationBadge());
+        }
+    }
+
     // ── Selection ─────────────────────────────────────────────────────────────
 
     private void selectImage(int index) {
@@ -562,7 +824,7 @@ public class MainController implements Initializable {
         } else {
             clearSelectionStyle();
             int start = Math.min(selectedIndex, index);
-            int end = Math.max(selectedIndex, index);
+            int end   = Math.max(selectedIndex, index);
             for (int i = start; i <= end; i++) {
                 selectedIndices.add(i);
                 setOverlaySelected(i, true);
@@ -589,7 +851,6 @@ public class MainController implements Initializable {
     }
 
     private void scrollToCell(int index) {
-        // Approximate scroll position based on row
         int cols = Math.max(1, (int) photoGrid.getPrefColumns());
         int row  = index / cols;
         int totalRows = (int) Math.ceil((double) displayPaths.size() / cols);
@@ -597,24 +858,24 @@ public class MainController implements Initializable {
             double vValue = (double) row / (totalRows - 1);
             gridScrollPane.setVvalue(vValue);
         }
-        
     }
 
     // ── Detail view ───────────────────────────────────────────────────────────
 
     private void openDetail(int index) {
         if (index < 0 || index >= displayPaths.size()) return;
-        selectedIndex = index;
-        currentPath = displayPaths.get(index);
+        previousFilter = activeFilter;
+        selectedIndex  = index;
+        currentPath    = displayPaths.get(index);
         loadDetailImage(currentPath);
-        loadAnnotationForImage(currentPath);
         showDetailView();
+        openAnnotationPanel(index);
     }
 
     private void loadDetailImage(String path) {
         File file = new File(path);
         detailFilename.setText(file.getName());
-        detailDimensions.setText(""); // updated once image loads
+        detailDimensions.setText("");
 
         String uri = file.toURI().toString();
         Image img = new Image(uri, 0, 0, true, true, true);
@@ -625,13 +886,11 @@ public class MainController implements Initializable {
                     detailImageView.setImage(img);
                     int w = (int) img.getWidth();
                     int h = (int) img.getHeight();
-                    detailDimensions.setText(
-                            String.format("%,d × %,d", w, h));
+                    detailDimensions.setText(String.format("%,d × %,d", w, h));
                 });
             }
         });
 
-        // Update heart button state
         boolean fav = favourites.contains(path);
         heartButton.setText(fav ? "♥" : "♡");
         if (fav) {
@@ -656,6 +915,7 @@ public class MainController implements Initializable {
 
     // CW: extended to restore BorderPane center when returning from DipEdit
     private void showLibraryView() {
+        hideAnnotationPanel();
         detailView.setVisible(false);
         detailView.setManaged(false);
         mosaicView.setVisible(false);
@@ -666,16 +926,15 @@ public class MainController implements Initializable {
         shareView.setManaged(false);
         libraryView.setVisible(true);
         libraryView.setManaged(true);
- 
+
         // CW: use mainRoot - safe even when libraryView is detached from scene
         if (mainRoot != null && dipEditRoot != null
                 && mainRoot.getCenter() == dipEditRoot) {
             restoreLibraryCenter();
         }
+        // No setNavActive calls should be placed here, as they overwrite other states.
     }
     // CW: change end
-    
-
 
     // ── Favourites toggle ─────────────────────────────────────────────────────
 
@@ -686,89 +945,131 @@ public class MainController implements Initializable {
 
         if (favourites.contains(path)) {
             favourites.remove(path);
+            FavouritesManager.removeFavourite(path); // Update FavouritesManager
             heartButton.setText("♡");
             heartButton.getStyleClass().remove("active");
         } else {
             favourites.add(path);
+            FavouritesManager.addFavourite(path); // Update FavouritesManager
             heartButton.setText("♥");
             if (!heartButton.getStyleClass().contains("active")) {
                 heartButton.getStyleClass().add("active");
             }
         }
         updateCounts();
-        // Refresh the thumbnail cell to show/hide the badge
-        refreshGrid();
-        if (selectedIndex >= 0 && selectedIndex < displayPaths.size()) {
-            selectImage(selectedIndex);
-        }
+        updateThumbnailBadges(selectedIndex);
+    }
+    // ── Annotation side panel ─────────────────────────────────────────────────
+
+    private void openAnnotationPanel(int index) {
+        if (index < 0 || index >= displayPaths.size()) return;
+        currentPath  = displayPaths.get(index);
+        selectedIndex = index;
+        panelFilename.setText(Paths.get(currentPath).getFileName().toString());
+        loadAnnotationForImage(currentPath);
+        annotationPanel.setVisible(true);
+        annotationPanel.setManaged(true);
     }
 
-    // ── Annotation ────────────────────────────────────────────────────────────
+    private void hideAnnotationPanel() {
+        annotationPanel.setVisible(false);
+        annotationPanel.setManaged(false);
+    }
 
     private void loadAnnotationForImage(String path) {
-        String text = MetadataStore.getInstance().getAnnotation(path);
-        annotationField.setText(text != null ? text : "");
+        String saved = MetadataStore.getInstance().getAnnotation(path);
+        // Strip legacy "text||x||y" format written by the old canvas system
+        String text = (saved != null && saved.contains("||"))
+                ? saved.split("\\|\\|")[0]
+                : saved;
+
+        annotationTextArea.clear();
+        annotationFeedbackLabel.setText("");
+
+        if (text != null && !text.isBlank()) {
+            existingAnnotationText.setText(text);
+            existingAnnotationDate.setText("");
+            existingAnnotationBox.setVisible(true);
+            existingAnnotationBox.setManaged(true);
+            addNoteLabel.setText("Edit note");
+            annotationSaveBtn.setText("Save");
+        } else {
+            existingAnnotationBox.setVisible(false);
+            existingAnnotationBox.setManaged(false);
+            addNoteLabel.setText("Add a note");
+            annotationSaveBtn.setText("Add");
+        }
     }
 
     @FXML
-    private void handleSaveAnnotation() {
-        if (currentPath == null) return;
-        try {
-            MetadataStore.getInstance().saveAnnotation(currentPath, annotationField.getText());
-            annotationFeedbackLabel.setText("✓ Annotated!");
-            annotationFeedbackLabel.setStyle(
-                    "-fx-font-size: 12px; -fx-text-fill: #4A6741; -fx-font-style: italic;");
-            PauseTransition pause = new PauseTransition(Duration.seconds(2.5));
-            pause.setOnFinished(e -> {
-                annotationFeedbackLabel.setText("");
-                annotationFeedbackLabel.setStyle(
-                        "-fx-font-size: 12px; -fx-text-fill: #6B6051; -fx-font-style: italic;");
-            });
-            pause.play();
-            updateCounts();
-            refreshGrid();
-            if (selectedIndex >= 0 && selectedIndex < displayPaths.size()) {
-                selectImage(selectedIndex);
-            }
-        } catch (Exception e) {
-            annotationFeedbackLabel.setText("✗ Failed to save");
-            annotationFeedbackLabel.setStyle(
-                    "-fx-font-size: 12px; -fx-text-fill: #B0432B; -fx-font-style: italic;");
-        }
+    private void handleCloseAnnotationPanel() {
+        hideAnnotationPanel();
+    }
+
+    @FXML
+    private void handleEditAnnotation() {
+        annotationTextArea.setText(existingAnnotationText.getText());
+        existingAnnotationBox.setVisible(false);
+        existingAnnotationBox.setManaged(false);
+        addNoteLabel.setText("Edit note");
+        annotationSaveBtn.setText("Save");
+        annotationTextArea.requestFocus();
     }
 
     @FXML
     private void handleDeleteAnnotation() {
         if (currentPath == null) return;
-        try {
-            MetadataStore.getInstance().deleteAnnotation(currentPath);
-            annotationField.clear();
-            annotationFeedbackLabel.setText("Annotation removed");
-            annotationFeedbackLabel.setStyle(
-                    "-fx-font-size: 12px; -fx-text-fill: #9C907D; -fx-font-style: italic;");
-            PauseTransition pause = new PauseTransition(Duration.seconds(2.5));
-            pause.setOnFinished(e -> {
-                annotationFeedbackLabel.setText("");
-                annotationFeedbackLabel.setStyle(
-                        "-fx-font-size: 12px; -fx-text-fill: #6B6051; -fx-font-style: italic;");
-            });
-            pause.play();
-            updateCounts();
-            refreshGrid();
-            if (selectedIndex >= 0 && selectedIndex < displayPaths.size()) {
-                selectImage(selectedIndex);
+        Alert confirm = new Alert(Alert.AlertType.CONFIRMATION);
+        confirm.setTitle("Delete note");
+        confirm.setHeaderText(null);
+        confirm.setContentText("Remove the note for this image?");
+        ButtonType deleteBtn = new ButtonType("Delete");
+        confirm.getButtonTypes().setAll(deleteBtn, ButtonType.CANCEL);
+        confirm.showAndWait().ifPresent(result -> {
+            if (result == deleteBtn) {
+                MetadataStore.getInstance().deleteAnnotation(currentPath);
+                loadAnnotationForImage(currentPath);
+                updateCounts();
+                updateThumbnailBadges(selectedIndex);
             }
+        });
+    }
+
+    @FXML
+    private void handleSaveAnnotation() {
+        if (currentPath == null) return;
+        String text = annotationTextArea.getText();
+        try {
+            if (text == null || text.isBlank()) {
+                MetadataStore.getInstance().deleteAnnotation(currentPath);
+            } else {
+                MetadataStore.getInstance().saveAnnotation(currentPath, text.strip());
+            }
+            loadAnnotationForImage(currentPath);
+            updateCounts();
+            updateThumbnailBadges(selectedIndex);
+            annotationFeedbackLabel.setText("✓ Saved");
+            PauseTransition pause = new PauseTransition(Duration.seconds(2));
+            pause.setOnFinished(e -> annotationFeedbackLabel.setText(""));
+            pause.play();
         } catch (Exception e) {
             annotationFeedbackLabel.setText("✗ Failed to save");
-            annotationFeedbackLabel.setStyle(
-                    "-fx-font-size: 12px; -fx-text-fill: #B0432B; -fx-font-style: italic;");
         }
     }
 
     // ── Stub handlers (wired by other modules) ────────────────────────────────
 
     @FXML private void handleNewMosaic() { /* Multimedia module */ }
-    @FXML private void handleAnnotate()  { annotationField.requestFocus(); }
+
+    @FXML
+    private void handleAnnotate() {
+        if (currentPath != null) {
+            loadAnnotationForImage(currentPath);
+            annotationPanel.setVisible(true);
+            annotationPanel.setManaged(true);
+        }
+    }
+
     @FXML
     private void handleShare() {
         handleNavShare();
@@ -776,7 +1077,55 @@ public class MainController implements Initializable {
             shareViewController.prefillAttachment(currentPath);
         }
     }
-    @FXML private void handleSearch()    { /* search logic */ }
+
+    @FXML private void handleSearch() { /* search logic */ }
+
+    // ── Delete selected images ────────────────────────────────────────────────
+
+    private void deleteSelectedImages() {
+        if (selectedIndices.isEmpty()) return;
+
+        String contentText;
+        if (selectedIndices.size() == 1) {
+            int idx = selectedIndices.iterator().next();
+            String filename = Paths.get(displayPaths.get(idx)).getFileName().toString();
+            contentText = "Remove \"" + filename + "\" from the library?";
+        } else {
+            contentText = "Remove " + selectedIndices.size() + " images from the library?";
+        }
+
+        Alert alert = new Alert(Alert.AlertType.CONFIRMATION);
+        alert.setTitle("Remove from library");
+        alert.setHeaderText(null);
+        alert.setContentText(contentText);
+        ButtonType removeBtn = new ButtonType("Remove");
+        alert.getButtonTypes().setAll(removeBtn, ButtonType.CANCEL);
+
+        alert.showAndWait().ifPresent(result -> {
+            if (result == removeBtn) {
+                List<Integer> sorted = new ArrayList<>(selectedIndices);
+                sorted.sort((a, b) -> b - a);
+                
+                List<String> pathsToRemove = new ArrayList<>();
+                for (int i : sorted) {
+                    String path = displayPaths.get(i);
+                    pathsToRemove.add(path);
+                    allPaths.remove(path);
+                    MetadataStore.getInstance().deleteAnnotation(path);
+                    favourites.remove(path);
+                }
+                
+                // Ensure they are also permanently removed from Favourites file
+                FavouritesManager.removeFavourites(pathsToRemove);
+                
+                MetadataStore.getInstance().saveLibraryImagePaths(allPaths);
+                clearSelectionStyle();
+                selectedIndex = -1;
+                applyFilter();
+                updateCounts();
+            }
+        });
+    }
 
     // ── Keyboard navigation ───────────────────────────────────────────────────
 
@@ -785,20 +1134,32 @@ public class MainController implements Initializable {
 
         if (inDetail) {
             switch (code) {
-                case LEFT:  navigateDetail(-1); break;
-                case RIGHT: navigateDetail(+1); break;
-                case ESCAPE: showLibraryView(); break;
+                case LEFT:   navigateDetail(-1); break;
+                case RIGHT:  navigateDetail(+1); break;
+                case ESCAPE: showLibraryView();  break;
                 default: break;
             }
         } else {
             int cols = Math.max(1, (int) photoGrid.getPrefColumns());
             switch (code) {
-                case LEFT:  navigateGrid(-1);    break;
-                case RIGHT: navigateGrid(+1);    break;
-                case UP:    navigateGrid(-cols);  break;
-                case DOWN:  navigateGrid(+cols);  break;
+                case LEFT:  navigateGrid(-1);   break;
+                case RIGHT: navigateGrid(+1);   break;
+                case UP:    navigateGrid(-cols); break;
+                case DOWN:  navigateGrid(+cols); break;
                 case ENTER: if (selectedIndex >= 0) openDetail(selectedIndex); break;
-                case ESCAPE: clearSelectionStyle(); selectedIndex = -1; break;
+                case ESCAPE:
+                    if (annotationPanel.isVisible()) {
+                        hideAnnotationPanel();
+                    } else {
+                        clearSelectionStyle();
+                        selectedIndex = -1;
+                    }
+                    break;
+                case DELETE:
+                case BACK_SPACE:
+                    if (libraryView.isVisible() && !selectedIndices.isEmpty())
+                        deleteSelectedImages();
+                    break;
                 default: break;
             }
         }
@@ -817,9 +1178,9 @@ public class MainController implements Initializable {
         openDetail(next);
     }
 
-    // CW: 
+    // CW:
     // ── Application shutdown ──────────────────────────────────────────────────
- 
+
     /**
      * Call this from the primary stage's setOnCloseRequest handler.
      * Shuts down the DipEdit module's background threads and releases

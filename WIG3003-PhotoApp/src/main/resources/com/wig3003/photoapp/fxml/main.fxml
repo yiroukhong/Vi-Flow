@@ -79,7 +79,7 @@
             <!-- STUDIO section -->
             <Label text="STUDIO" styleClass="nav-section-label"/>
 
-            <HBox styleClass="nav-item" onMouseClicked="#handleNavEdit">
+            <HBox fx:id="navEdit" styleClass="nav-item" onMouseClicked="#handleNavEdit">
                 <VBox.margin><Insets top="2" right="8" bottom="2" left="8"/></VBox.margin>
                 <FontIcon iconLiteral="bi-circle-square" iconSize="16" styleClass="nav-icon-label"/>
                 <Label text="Edit" styleClass="nav-label">
@@ -93,7 +93,6 @@
                 <Label text="Mosaic" styleClass="nav-label">
                     <HBox.hgrow>ALWAYS</HBox.hgrow>
                 </Label>
-                <Label text="0" styleClass="nav-count"/>
             </HBox>
 
             <HBox fx:id="navVideo" styleClass="nav-item" onMouseClicked="#handleNavVideo">
@@ -102,7 +101,6 @@
                 <Label text="Video" styleClass="nav-label">
                     <HBox.hgrow>ALWAYS</HBox.hgrow>
                 </Label>
-                <Label text="0" styleClass="nav-count"/>
             </HBox>
 
             <HBox fx:id="navShare" styleClass="nav-item" onMouseClicked="#handleNavShare">
@@ -129,17 +127,11 @@
                 <HBox styleClass="content-header">
                     <Label text="Your Library" styleClass="page-title"/>
                     <Region HBox.hgrow="ALWAYS"/>
-                    <TextField fx:id="searchField" styleClass="search-field"
-                               promptText="Search by name, date, or tag"
-                               onAction="#handleSearch"/>
-                    <Button text="Import" styleClass="btn-secondary"
-                                    onAction="#handleImport">
+                    <Button fx:id="importBtn" text="Import" styleClass="btn-secondary">
                         <graphic>
                             <FontIcon iconLiteral="bi-box-arrow-in-down" iconSize="16"/>
                         </graphic>
                     </Button>
-                    <Button text="+ New Mosaic" styleClass="btn-primary"
-                            onAction="#handleNewMosaic"/>
                 </HBox>
 
                 <!-- Filter pills -->
@@ -191,14 +183,14 @@
                                text="Drop a folder anywhere on this window, or use&#10;import to point Vi-Flow at your photo library"
                                wrapText="true"/>
                         <HBox styleClass="empty-buttons">
-                            <Button text="Browse" styleClass="btn-secondary"
-                                    onAction="#handleBrowse">
+                            <Button text="Browse files" styleClass="btn-secondary"
+                                    onAction="#handleImport">
                                 <graphic>
                                     <FontIcon iconLiteral="bi-folder" iconSize="16"/>
                                 </graphic>
                             </Button>
                             <Button text="Import folder" styleClass="btn-primary"
-                                    onAction="#handleImport">
+                                    onAction="#handleImportFolder">
                                 <graphic>
                                     <FontIcon iconLiteral="bi-box-arrow-in-down" iconSize="16" iconColor="WHITE" />
                                 </graphic>
@@ -206,14 +198,29 @@
                         </HBox>
                     </VBox>
 
+                    <!-- Filtered empty state (Favorites / Annotated) -->
+                    <VBox fx:id="emptyStateFiltered" styleClass="empty-state"
+                          alignment="CENTER" spacing="12"
+                          visible="false" managed="false">
+                        <StackPane styleClass="empty-icon-bg" alignment="CENTER">
+                            <FontIcon fx:id="emptyFilteredIcon" iconLiteral="bi-heart"
+                                      iconSize="48" styleClass="empty-icon"/>
+                        </StackPane>
+                        <Label fx:id="emptyFilteredTitle" text=""
+                               styleClass="empty-title"/>
+                        <Label fx:id="emptyFilteredBody" text=""
+                               styleClass="empty-body" wrapText="true"
+                               textAlignment="CENTER"/>
+                    </VBox>
+
                 </StackPane>
             </VBox>
 
             <!-- ─── DETAIL VIEW ───────────────────────────────── -->
             <VBox fx:id="detailView" styleClass="detail-view"
-                  visible="false" managed="false">
+                  visible="false" managed="false"
+                  VBox.vgrow="ALWAYS">
 
-                <!-- Detail header -->
                 <!-- Detail header -->
                 <HBox styleClass="detail-header">
                     <Label fx:id="detailFilename" text=""
@@ -230,38 +237,16 @@
                             onAction="#handleShare"/>
                 </HBox>
 
-                <!-- Full-res image area (dark canvas) -->
+                <!-- Full-res image area -->
                 <StackPane fx:id="detailImageArea"
-                           styleClass="detail-image-area"
-                           VBox.vgrow="ALWAYS">
+                        styleClass="detail-image-area"
+                        VBox.vgrow="ALWAYS"
+                        minHeight="300"
+                        maxHeight="600">
                     <ImageView fx:id="detailImageView"
-                               preserveRatio="true" smooth="true"
-                               pickOnBounds="true"/>
+                            preserveRatio="true" smooth="true"
+                            pickOnBounds="true"/>
                 </StackPane>
-
-                <!-- Annotation panel -->
-                <VBox styleClass="annotation-panel" spacing="8">
-                    <padding><Insets top="12" right="20" bottom="20" left="20"/></padding>
-                    <Label text="ANNOTATION" styleClass="annotation-section-label"/>
-                    <TextArea fx:id="annotationField"
-                              styleClass="annotation-field"
-                              promptText="Add a note to this image…"
-                              wrapText="true"
-                              prefHeight="100">
-                        <VBox.vgrow>NEVER</VBox.vgrow>
-                    </TextArea>
-                    <HBox alignment="CENTER_RIGHT" spacing="10">
-                        <padding><Insets top="4"/></padding>
-                        <Label fx:id="annotationFeedbackLabel" text=""
-                               style="-fx-font-size: 12px; -fx-text-fill: #6B6051; -fx-font-style: italic;">
-                            <HBox.hgrow>ALWAYS</HBox.hgrow>
-                        </Label>
-                        <Button text="Delete" styleClass="btn-secondary"
-                                onAction="#handleDeleteAnnotation"/>
-                        <Button text="Save note" styleClass="btn-primary"
-                                onAction="#handleSaveAnnotation"/>
-                    </HBox>
-                </VBox>
 
             </VBox>
 
@@ -279,6 +264,78 @@
             <fx:include fx:id="shareView"
                         source="ShareView.fxml"
                         visible="false" managed="false"/>
+
+            <!-- ─── ANNOTATION SIDE PANEL ──────────────── -->
+            <VBox fx:id="annotationPanel"
+                  visible="false" managed="false"
+                  prefWidth="300" maxWidth="300"
+                  spacing="0"
+                  StackPane.alignment="CENTER_RIGHT"
+                  style="-fx-background-color:#FBF8F3; -fx-border-color:#ECE4D3; -fx-border-width:0 0 0 1; -fx-effect:dropshadow(gaussian,rgba(0,0,0,0.10),12,0,-4,0);">
+
+                <!-- Header -->
+                <HBox alignment="CENTER_LEFT" spacing="10"
+                      style="-fx-padding:14 16 14 16; -fx-border-color:transparent transparent #ECE4D3 transparent; -fx-border-width:0 0 1 0;">
+                    <VBox HBox.hgrow="ALWAYS" spacing="3">
+                        <Label fx:id="panelFilename" text=""
+                               style="-fx-font-size:13px; -fx-font-weight:bold; -fx-text-fill:#1F1B16;"/>
+                        <Label text="Annotated photos show &#9829; in the upper-right of the preview"
+                               wrapText="true"
+                               style="-fx-font-size:10px; -fx-text-fill:#9C907D;"
+                               maxWidth="220"/>
+                    </VBox>
+                    <Button text="&#x2715;" onAction="#handleCloseAnnotationPanel"
+                            style="-fx-background-color:transparent; -fx-border-color:transparent; -fx-text-fill:#9C907D; -fx-font-size:14px; -fx-cursor:hand; -fx-padding:4 8;"/>
+                </HBox>
+
+                <!-- Existing annotation (shown when one exists) -->
+                <VBox fx:id="existingAnnotationBox"
+                      visible="false" managed="false"
+                      spacing="6"
+                      style="-fx-padding:12 16 12 16; -fx-border-color:transparent transparent #ECE4D3 transparent; -fx-border-width:0 0 1 0;">
+                    <Label text="NOTE"
+                           style="-fx-font-size:10px; -fx-font-weight:bold; -fx-text-fill:#9C907D;"/>
+                    <Label fx:id="existingAnnotationText" text=""
+                           wrapText="true"
+                           style="-fx-font-size:13px; -fx-font-style:italic; -fx-text-fill:#1F1B16; -fx-background-color:white; -fx-border-color:#ECE4D3; -fx-border-radius:8; -fx-background-radius:8; -fx-padding:10 12;"/>
+                    <Label fx:id="existingAnnotationDate" text=""
+                           style="-fx-font-size:10px; -fx-text-fill:#9C907D;"/>
+                    <HBox spacing="8" style="-fx-padding:4 0 0 0;">
+                        <Button text="Edit" onAction="#handleEditAnnotation"
+                                styleClass="btn-secondary"
+                                prefHeight="28"
+                                style="-fx-font-size:11px;"/>
+                        <Button text="Delete" onAction="#handleDeleteAnnotation"
+                                prefHeight="28"
+                                style="-fx-font-size:11px; -fx-background-color:transparent; -fx-text-fill:#B0432B; -fx-border-color:#F5C0C0; -fx-border-radius:8; -fx-background-radius:8; -fx-padding:4 12; -fx-cursor:hand;"/>
+                    </HBox>
+                </VBox>
+
+                <!-- Add / edit note -->
+                <VBox fx:id="addNoteBox"
+                      spacing="8"
+                      VBox.vgrow="ALWAYS"
+                      style="-fx-padding:12 16 12 16;">
+                    <Label fx:id="addNoteLabel" text="Add a note"
+                           style="-fx-font-size:10px; -fx-font-weight:bold; -fx-text-fill:#9C907D;"/>
+                    <TextArea fx:id="annotationTextArea"
+                              promptText="A note about this image…"
+                              wrapText="true"
+                              prefHeight="120"
+                              styleClass="annotation-field"/>
+                    <HBox alignment="CENTER_RIGHT" style="-fx-padding:4 0 0 0;">
+                        <Label fx:id="annotationFeedbackLabel" text=""
+                               style="-fx-font-size:11px; -fx-font-style:italic; -fx-text-fill:#6B6051;">
+                            <HBox.hgrow>ALWAYS</HBox.hgrow>
+                        </Label>
+                        <Button fx:id="annotationSaveBtn" text="Add"
+                                onAction="#handleSaveAnnotation"
+                                styleClass="btn-primary"
+                                style="-fx-font-size:12px; -fx-padding:6 18;"/>
+                    </HBox>
+                </VBox>
+
+            </VBox>
 
         </StackPane>
     </center>

@@ -136,33 +136,26 @@ public class MetadataStore {
                 || lower.endsWith(".tiff");
     }
     // CW: change end
+    
+    public static void saveAnnotation(String absolutePath, String annotation) {
+    if (annotation == null)
+        throw new IllegalArgumentException("annotation must not be null");
+    INSTANCE.annotations.put(absolutePath, annotation);
+    INSTANCE.persist();
+}
 
-    /** Saves (overwrites) the annotation for path. Passing blank/null deletes it. */
-    public void saveAnnotation(String path, String text) {
-        if (text == null || text.isBlank()) {
-            annotations.remove(path);
-        } else {
-            annotations.put(path, text);
-        }
-        persist();
-    }
+public static String getAnnotation(String absolutePath) {
+    return INSTANCE.annotations.getOrDefault(absolutePath, null);
+}
 
-    /** Returns the stored annotation text, or null if none exists. */
-    public String getAnnotation(String path) {
-        return annotations.get(path);
-    }
+public static void deleteAnnotation(String absolutePath) {
+    INSTANCE.annotations.remove(absolutePath);
+    INSTANCE.persist();
+}
 
-    /** Removes any annotation for path. */
-    public void deleteAnnotation(String path) {
-        annotations.remove(path);
-        persist();
-    }
-
-    /** True if path has a non-empty annotation stored. */
-    public boolean hasAnnotation(String path) {
-        return annotations.containsKey(path);
-    }
-
+public static boolean hasAnnotation(String absolutePath) {
+    return INSTANCE.annotations.containsKey(absolutePath);
+}
     /** Count of paths in the given collection that have annotations. */
     public int annotationCount(Collection<String> paths) {
         int n = 0;

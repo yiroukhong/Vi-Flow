@@ -81,54 +81,52 @@
                               -fx-font-family:'Georgia',serif;
                               -fx-text-alignment:center;"/>
 
-                <!-- Playback controls pill overlay -->
-                <HBox fx:id="playbackBar"
-                      StackPane.alignment="BOTTOM_CENTER"
-                      alignment="CENTER" spacing="12"
-                      style="-fx-background-color:rgba(0,0,0,0.55);
-                             -fx-padding:10 20 10 20;
-                             -fx-background-radius:999;">
-                    <StackPane.margin><Insets bottom="16"/></StackPane.margin>
-
-                    <Button fx:id="prevBtn" text="←"
-                            onAction="#handlePrev"
-                            style="-fx-background-color:transparent;
-                                   -fx-text-fill:white;
-                                   -fx-font-size:14;
-                                   -fx-cursor:hand;
-                                   -fx-border-color:transparent;"/>
-
-                    <Button fx:id="playPauseBtn" text="▶"
-                            onAction="#handlePlayPause"
-                            style="-fx-background-color:white;
-                                   -fx-text-fill:#1F1B16;
-                                   -fx-background-radius:999;
-                                   -fx-border-radius:999;
-                                   -fx-min-width:32;
-                                   -fx-min-height:32;
-                                   -fx-font-size:14;
-                                   -fx-font-weight:bold;
-                                   -fx-cursor:hand;"/>
-
-                    <Button fx:id="nextBtn" text="→"
-                            onAction="#handleNext"
-                            style="-fx-background-color:transparent;
-                                   -fx-text-fill:white;
-                                   -fx-font-size:14;
-                                   -fx-cursor:hand;
-                                   -fx-border-color:transparent;"/>
-
-                    <Label fx:id="playbackTimeLabel" text="0:00 / 0:00"
-                           style="-fx-font-size:11;
-                                  -fx-text-fill:white;
-                                  -fx-font-family:'Consolas',monospace;
-                                  -fx-min-width:80;"/>
-
-                    <Slider fx:id="seekSlider" min="0" max="1" value="0"
-                            prefWidth="160"/>
-
-                </HBox>
             </StackPane>
+
+            <!-- Playback bar -->
+            <HBox fx:id="playbackBar"
+                  alignment="CENTER_LEFT" spacing="12"
+                  style="-fx-background-color:#1F1B16;
+                         -fx-padding:8 16 8 16;">
+
+                <Button fx:id="prevBtn" text="←"
+                        onAction="#handlePrev"
+                        style="-fx-background-color:transparent;
+                               -fx-text-fill:white;
+                               -fx-font-size:14;
+                               -fx-cursor:hand;
+                               -fx-border-color:transparent;"/>
+
+                <Button fx:id="playPauseBtn" text="▶"
+                        onAction="#handlePlayPause"
+                        style="-fx-background-color:white;
+                               -fx-text-fill:#1F1B16;
+                               -fx-background-radius:999;
+                               -fx-border-radius:999;
+                               -fx-min-width:32;
+                               -fx-min-height:32;
+                               -fx-font-size:14;
+                               -fx-font-weight:bold;
+                               -fx-cursor:hand;"/>
+
+                <Button fx:id="nextBtn" text="→"
+                        onAction="#handleNext"
+                        style="-fx-background-color:transparent;
+                               -fx-text-fill:white;
+                               -fx-font-size:14;
+                               -fx-cursor:hand;
+                               -fx-border-color:transparent;"/>
+
+                <Label fx:id="playbackTimeLabel" text="0:00 / 0:00"
+                       style="-fx-font-size:11;
+                              -fx-text-fill:white;
+                              -fx-font-family:'Consolas',monospace;
+                              -fx-min-width:80;"/>
+
+                <Slider fx:id="seekSlider" min="0" max="1" value="0"
+                        prefWidth="160" HBox.hgrow="ALWAYS"/>
+
+            </HBox>
 
             <!-- Filmstrip area -->
             <VBox style="-fx-background-color:#F5F0E6;
@@ -155,13 +153,16 @@
                 </HBox>
 
                 <!-- Filmstrip scroll -->
-                <ScrollPane hbarPolicy="AS_NEEDED" vbarPolicy="NEVER"
-                            fitToHeight="true"
+                <ScrollPane fx:id="filmstripScroll"
+                            hbarPolicy="AS_NEEDED" vbarPolicy="NEVER"
+                            fitToHeight="false" prefHeight="120"
+                            pannable="false"
                             style="-fx-background-color:transparent;
                                    -fx-background:transparent;
                                    -fx-border-color:transparent;
                                    -fx-padding:0 16 12 16;">
                     <HBox fx:id="filmstripBox" spacing="8" alignment="CENTER_LEFT"
+                          minHeight="88" prefHeight="88"
                           style="-fx-padding:4 0 4 0;"/>
                 </ScrollPane>
 
@@ -183,7 +184,8 @@
                         style="-fx-background-color:#FBF8F3;
                                -fx-border-color:transparent;
                                -fx-focus-color:transparent;
-                               -fx-faint-focus-color:transparent;">
+                               -fx-faint-focus-color:transparent;
+                               -fx-padding: 0 4 0 0;">
 
                 <VBox spacing="0">
 
