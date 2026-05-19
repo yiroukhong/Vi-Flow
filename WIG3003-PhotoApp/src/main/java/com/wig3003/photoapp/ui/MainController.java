@@ -664,8 +664,8 @@ public class MainController implements Initializable {
         });
 
         String favLabel = favourites.contains(path) ? "Remove from Favorites" : "Add to Favorites";
-        MenuItem favItem = new MenuItem(favLabel);
-        favItem.setOnAction(e -> {
+        MenuItem favItem1 = new MenuItem(favLabel);
+        favItem1.setOnAction(e -> {
             if (favourites.contains(path)) {
                 favourites.remove(path);
             } else {
@@ -689,13 +689,13 @@ public class MainController implements Initializable {
             deleteSelectedImages();
         });
 
-        ctxMenu.getItems().addAll(exportItem, favItem, new SeparatorMenuItem(), deleteItem);
+        ctxMenu.getItems().addAll(exportItem, favItem1, new SeparatorMenuItem(), deleteItem);
         cell.setOnContextMenuRequested(e -> {
             Set<Integer> affected = (selectedIndices.contains(index) && selectedIndices.size() > 1)
                     ? new HashSet<>(selectedIndices) : new HashSet<>();
             if (affected.isEmpty()) affected.add(index);
             boolean allFav = affected.stream().allMatch(i -> favourites.contains(displayPaths.get(i)));
-            favItem.setText(allFav ? "Remove from favorites" : "Add to favorites");
+            favItem1.setText(allFav ? "Remove from favorites" : "Add to favorites");
             ctxMenu.show(cell, e.getScreenX(), e.getScreenY());
         });
 
