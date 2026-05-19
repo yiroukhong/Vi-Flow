@@ -29,9 +29,8 @@ import java.util.List;
  */
 public class VideoCompiler {
 
-    private static final int    FRAME_WIDTH  = 1280;
-    private static final int    FRAME_HEIGHT = 720;
-    private static final double FPS          = 25.0;
+    private static final int FRAME_WIDTH  = 1280;
+    private static final int FRAME_HEIGHT = 720;
 
     /**
      * Compiles a list of images into an AVI video with overlay text.
@@ -89,9 +88,7 @@ public class VideoCompiler {
         String outPath   = outputDir + File.separator + filename;
 
         int totalFrames = durationPerPhoto * fps;
-        // Transition frames: 12 per boundary, written (N-1) times
-        int transFramesTotal = transition.equals("NONE") ? 0 : (imagePaths.size() - 1) * 12;
-        VideoWriter writer    = new VideoWriter();
+        VideoWriter writer = new VideoWriter();
         int         fourcc    = VideoWriter.fourcc('m', 'p', '4', 'v');
         Size        frameSize = new Size(FRAME_WIDTH, FRAME_HEIGHT);
 
@@ -103,11 +100,7 @@ public class VideoCompiler {
         }
 
         // 4. Process each image
-        // Reserve transition budget first, then distribute remainder evenly across clips
-        int maxTotalFrames    = 990;
-        int availableForClips = maxTotalFrames - transFramesTotal;
-        int perPhotoFrames    = Math.max(1,
-                Math.min(totalFrames, availableForClips / imagePaths.size()));
+        int perPhotoFrames = totalFrames;
 
         for (int i = 0; i < imagePaths.size(); i++) {
             String imgPath = imagePaths.get(i);
