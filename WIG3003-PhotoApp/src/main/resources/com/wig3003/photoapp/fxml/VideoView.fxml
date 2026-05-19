@@ -153,8 +153,10 @@
                 </HBox>
 
                 <!-- Filmstrip scroll -->
-                <ScrollPane hbarPolicy="AS_NEEDED" vbarPolicy="NEVER"
+                <ScrollPane fx:id="filmstripScroll"
+                            hbarPolicy="AS_NEEDED" vbarPolicy="NEVER"
                             fitToHeight="false" prefHeight="120"
+                            pannable="false"
                             style="-fx-background-color:transparent;
                                    -fx-background:transparent;
                                    -fx-border-color:transparent;

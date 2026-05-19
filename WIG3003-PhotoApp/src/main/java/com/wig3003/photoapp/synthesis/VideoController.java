@@ -71,8 +71,9 @@ public class VideoController {
     // FXML — FILMSTRIP
     // =========================================================
 
-    @FXML private Label stripInfoLabel;
-    @FXML private HBox  filmstripBox;
+    @FXML private Label       stripInfoLabel;
+    @FXML private HBox        filmstripBox;
+    @FXML private ScrollPane  filmstripScroll;
 
     // =========================================================
     // FXML — RIGHT PANEL
@@ -132,6 +133,15 @@ public class VideoController {
 
         textSizeSlider.valueProperty().addListener((obs, ov, nv) ->
                 textSizeLabel.setText(nv.intValue() + " px"));
+
+        filmstripScroll.setOnScroll(e -> {
+            if (e.getDeltaY() != 0) {
+                double delta = e.getDeltaY() > 0 ? -0.1 : 0.1;
+                filmstripScroll.setHvalue(
+                    Math.max(0, Math.min(1, filmstripScroll.getHvalue() + delta)));
+                e.consume();
+            }
+        });
 
         loadClipsFromFavourites();
     }
