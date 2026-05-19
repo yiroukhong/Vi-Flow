@@ -1,17 +1,23 @@
 package com.wig3003.photoapp.synthesis;
 
-
 import com.wig3003.photoapp.social.EmailSender;
 
+import javafx.geometry.Insets;
+import javafx.geometry.Pos;
 import javafx.scene.Scene;
 import javafx.scene.control.Button;
 import javafx.scene.control.Label;
 import javafx.scene.control.Slider;
+import javafx.scene.layout.BorderPane;
 import javafx.scene.layout.HBox;
+import javafx.scene.layout.Priority;
+import javafx.scene.layout.Region;
+import javafx.scene.layout.StackPane;
 import javafx.scene.layout.VBox;
 import javafx.scene.media.Media;
 import javafx.scene.media.MediaPlayer;
 import javafx.scene.media.MediaView;
+import javafx.scene.paint.Color;
 import javafx.stage.Stage;
 import javafx.util.Duration;
 
@@ -35,36 +41,53 @@ public class MediaPlayerController {
             throw new IllegalArgumentException("Video file not found: " + videoPath);
         }
 
-        // 2. Create JavaFX Media and MediaPlayer
+        // 3. Use JavaFX MediaPlayer inside the app (AVI/MJPEG supported natively)
         Media       media  = new Media(f.toURI().toString());
         MediaPlayer player = new MediaPlayer(media);
 
-        // 3. Create MediaView and bind to player
+        // 4. Create MediaView — fills available space
         MediaView mediaView = new MediaView(player);
-        mediaView.setFitWidth(800);
         mediaView.setPreserveRatio(true);
 
-        // 4. Build playback controls
-        Button playBtn   = new Button("Play");
-        Button pauseBtn  = new Button("Pause");
+        StackPane mediaPane = new StackPane(mediaView);
+        mediaPane.setStyle("-fx-background-color:black;");
+        mediaView.fitWidthProperty().bind(mediaPane.widthProperty());
+        mediaView.fitHeightProperty().bind(mediaPane.heightProperty());
+
+        // 5. Build playback controls
+        Button playBtn    = new Button("▶ Play");
+        Button pauseBtn   = new Button("⏸ Pause");
         Slider seekSlider = new Slider(0, 1, 0);
-        seekSlider.setPrefWidth(300); // ensure slider is usable
-        Label  timeLabel = new Label("0:00");
+        seekSlider.setPrefWidth(300);
+        HBox.setHgrow(seekSlider, Priority.ALWAYS);
 
-        // Share via Email button — Contract §7
-        Button shareBtn = new Button("Share via Email");
+        Label timeLabel = new Label("0:00 / 0:00");
+        timeLabel.setTextFill(Color.WHITE);
+        timeLabel.setStyle("-fx-font-size:11; -fx-font-family:'Consolas',monospace;");
 
-        // 5. Wire play/pause buttons
+        Button shareBtn = new Button("✉ Share");
+
+        String btnStyle = "-fx-background-color:rgba(255,255,255,0.15);"
+                + "-fx-text-fill:white;"
+                + "-fx-background-radius:6;"
+                + "-fx-cursor:hand;"
+                + "-fx-padding:6 12;";
+        playBtn.setStyle(btnStyle);
+        pauseBtn.setStyle(btnStyle);
+        shareBtn.setStyle(btnStyle);
+
+        // 6. Wire play/pause
         playBtn.setOnAction(e  -> player.play());
         pauseBtn.setOnAction(e -> player.pause());
 
-        // 6. Wire seek slider and time label
+        // 7. Wire seek slider and time label
         player.currentTimeProperty().addListener((obs, old, now) -> {
-            double dur = player.getTotalDuration().toSeconds();
+            double dur = player.getTotalDuration() != null
+                    ? player.getTotalDuration().toSeconds() : 0;
             if (dur > 0) {
                 seekSlider.setValue(now.toSeconds() / dur);
             }
-            timeLabel.setText(formatTime(now));
+            timeLabel.setText(formatTime(now) + " / " + formatTime(player.getTotalDuration()));
         });
 
         seekSlider.setOnMouseReleased(e -> {
@@ -73,28 +96,53 @@ public class MediaPlayerController {
             player.seek(target);
         });
 
-        // 7. Wire Share button to Sam's EmailSender
-        shareBtn.setOnAction(e -> {
-            EmailSender.launchComposeWindow(videoPath, "VIDEO");
+        // 8. Wire Share button
+        shareBtn.setOnAction(e ->
+                EmailSender.launchComposeWindow(videoPath, "VIDEO"));
+
+        // 9. Assemble controls — seek row above buttons row
+        HBox.setHgrow(seekSlider, Priority.ALWAYS);
+        HBox seekRow = new HBox(8, seekSlider, timeLabel);
+        seekRow.setAlignment(Pos.CENTER_LEFT);
+
+        Region spacer = new Region();
+        HBox.setHgrow(spacer, Priority.ALWAYS);
+        HBox buttonsRow = new HBox(8, playBtn, pauseBtn, spacer, shareBtn);
+        buttonsRow.setAlignment(Pos.CENTER_LEFT);
+
+        VBox controlsVBox = new VBox(4, seekRow, buttonsRow);
+        controlsVBox.setStyle("-fx-background-color:#161210; -fx-padding:8 16 12 16;");
+
+        // 10. Root layout
+        BorderPane root = new BorderPane();
+        root.setCenter(mediaPane);
+        root.setBottom(controlsVBox);
+        root.setStyle("-fx-background-color:black;");
+
+        // 11. Auto-play when ready
+        player.setOnReady(() -> player.play());
+
+        Stage popup = new Stage();
+        popup.setScene(new Scene(root, 900, 560));
+        popup.setTitle("Video Player — Vi-Flow");
+        popup.show();
+
+        player.statusProperty().addListener((obs, oldStatus, newStatus) -> {
+            if (newStatus == MediaPlayer.Status.PLAYING) {
+                playBtn.setText("▶ Play");
+            }
         });
 
-        // 8. Assemble layout and open popup Stage
-        HBox controlBox = new HBox(8, playBtn, pauseBtn, seekSlider, timeLabel, shareBtn);
-        VBox layout     = new VBox(8, mediaView, controlBox);
-
-        // Contract §6 — launch in a separate non-blocking popup window
-        Stage popup = new Stage();
-        popup.setScene(new Scene(layout));
-        popup.setTitle("Video Player");
-        popup.show(); // non-blocking
+        popup.setOnCloseRequest(e -> player.stop());
     }
 
     /**
      * Formats a Duration into m:ss display string.
      */
-    private String formatTime(Duration elapsed) {
-        int minutes = (int) elapsed.toMinutes();
-        int seconds = (int) elapsed.toSeconds() % 60;
+    private String formatTime(Duration d) {
+        if (d == null || d.isUnknown() || d.isIndefinite()) return "0:00";
+        int minutes = (int) d.toMinutes();
+        int seconds = (int) d.toSeconds() % 60;
         return String.format("%d:%02d", minutes, seconds);
     }
 }

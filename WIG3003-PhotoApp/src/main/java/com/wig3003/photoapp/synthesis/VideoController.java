@@ -1,8 +1,6 @@
 package com.wig3003.photoapp.synthesis;
 
-import com.wig3003.photoapp.ui.MainController;
 import com.wig3003.photoapp.util.FavouritesManager;
-import com.wig3003.photoapp.util.SaveHelper;
 
 import javafx.animation.KeyFrame;
 import javafx.animation.Timeline;
@@ -73,8 +71,9 @@ public class VideoController {
     // FXML — FILMSTRIP
     // =========================================================
 
-    @FXML private Label stripInfoLabel;
-    @FXML private HBox  filmstripBox;
+    @FXML private Label       stripInfoLabel;
+    @FXML private HBox        filmstripBox;
+    @FXML private ScrollPane  filmstripScroll;
 
     // =========================================================
     // FXML — RIGHT PANEL
@@ -101,8 +100,6 @@ public class VideoController {
     // STATE
     // =========================================================
 
-    private MainController            mainController    = null;
-
     private List<String>              clipPaths         = new ArrayList<>();
     private List<String>              libraryPaths      = new ArrayList<>();
     private int                       selectedClipIndex = -1;
@@ -111,6 +108,8 @@ public class VideoController {
     private Timeline                  previewTimeline   = null;
     private int                       previewIndex      = 0;
     private final Map<Integer,String> clipOverlays      = new HashMap<>();
+    private javafx.scene.media.MediaPlayer embeddedPlayer    = null;
+    private javafx.scene.media.MediaView   embeddedMediaView = null;
 
     // =========================================================
     // INITIALIZE
@@ -135,6 +134,15 @@ public class VideoController {
         textSizeSlider.valueProperty().addListener((obs, ov, nv) ->
                 textSizeLabel.setText(nv.intValue() + " px"));
 
+        filmstripScroll.setOnScroll(e -> {
+            if (e.getDeltaY() != 0) {
+                double delta = e.getDeltaY() > 0 ? -0.1 : 0.1;
+                filmstripScroll.setHvalue(
+                    Math.max(0, Math.min(1, filmstripScroll.getHvalue() + delta)));
+                e.consume();
+            }
+        });
+
         loadClipsFromFavourites();
     }
 
@@ -144,11 +152,7 @@ public class VideoController {
 
     private void loadClipsFromFavourites() {
         List<String> paths;
-        try {
-            paths = FavouritesManager.getFavourites();
-        } catch (IOException e) {
-            paths = new ArrayList<>();
-        }
+        paths = FavouritesManager.getFavourites();
         clipPaths = new ArrayList<>(paths);
         rebuildFilmstrip();
         updateStripInfo();
@@ -227,7 +231,14 @@ public class VideoController {
         Label plus = new Label("+");
         plus.setStyle("-fx-font-size:24; -fx-text-fill:#9C907D;");
         card.getChildren().add(plus);
-        card.setOnMouseClicked(e -> handleAddFromFavorites());
+        card.setOnMouseClicked(e -> {
+            try {
+                handleAddFromFavorites();
+            } catch (IOException e1) {
+                // TODO Auto-generated catch block
+                e1.printStackTrace();
+            }
+        });
         return card;
     }
 
@@ -279,7 +290,7 @@ public class VideoController {
     // ADD FROM FAVORITES
     // =========================================================
 
-    private void handleAddFromFavorites() {
+    private void handleAddFromFavorites() throws IOException {
         Stage owner = getStage();
         if (owner == null) return;
 
@@ -287,12 +298,7 @@ public class VideoController {
         if (!libraryPaths.isEmpty()) {
             source = libraryPaths;
         } else {
-            try {
-                source = FavouritesManager.getFavourites();
-            } catch (IOException e) {
-                showError("Could not load library.", e.getMessage());
-                return;
-            }
+            source = FavouritesManager.getFavourites();
         }
 
         List<String> available = source.stream()
@@ -494,7 +500,7 @@ public class VideoController {
     }
 
     // =========================================================
-    // COMPILE — reads position toggle and passes to VideoCompiler
+    // COMPILE — auto-launches MediaPlayer after compile
     // =========================================================
 
     @FXML
@@ -520,26 +526,34 @@ public class VideoController {
         if (transFade.isSelected())       transitionType = "FADE";
         else if (transCross.isSelected()) transitionType = "CROSS";
 
-        // Read position toggle — FIX: was never read before
+        // Read position toggle
         String textPosition = "BOTTOM";
         if (posTop.isSelected())         textPosition = "TOP";
         else if (posCenter.isSelected()) textPosition = "CENTER";
 
-        List<String>  paths      = new ArrayList<>(clipPaths);
-        final String  transition = transitionType;
-        final String  position   = textPosition;
+        // Read fps toggle
+        int selectedFps = 30;
+        if (fps24.isSelected())      selectedFps = 24;
+        else if (fps30.isSelected()) selectedFps = 30;
+        else if (fps60.isSelected()) selectedFps = 60;
+
+        List<String> paths      = new ArrayList<>(clipPaths);
+        final String transition = transitionType;
+        final String position   = textPosition;
+        final int    finalFps   = selectedFps;
 
         compileThread = new Thread(() -> {
             try {
                 String resultPath = new VideoCompiler()
                         .compileVideo(paths, durationPerPhoto, overlayText,
-                                outputDir, transition, position);  // ← position now passed
+                                outputDir, transition, position, finalFps);
 
                 Platform.runLater(() -> {
                     lastVideoPath = resultPath;
                     timecodeLabel.setText(formatTime(paths.size() * durationPerPhoto));
                     resetCompileUI();
-                    showInfo("Video compiled.", "Click Export to save the file.");
+
+                    embedPlayer(resultPath);
                 });
 
             } catch (IllegalArgumentException | IOException e) {
@@ -563,6 +577,93 @@ public class VideoController {
         saveDraftBtn.setManaged(false);
     }
 
+    private void embedPlayer(String videoPath) {
+        if (embeddedPlayer != null) {
+            embeddedPlayer.stop();
+            embeddedPlayer.dispose();
+            embeddedPlayer = null;
+        }
+
+        if (embeddedMediaView != null) {
+            canvasArea.getChildren().remove(embeddedMediaView);
+            embeddedMediaView = null;
+        }
+
+        try {
+            File f = new File(videoPath);
+            if (!f.exists()) {
+                showError("Playback error.", "Video file not found: " + videoPath);
+                return;
+            }
+
+            javafx.scene.media.Media media =
+                    new javafx.scene.media.Media(f.toURI().toString());
+            embeddedPlayer    = new javafx.scene.media.MediaPlayer(media);
+            embeddedMediaView = new javafx.scene.media.MediaView(embeddedPlayer);
+
+            embeddedMediaView.fitWidthProperty().bind(canvasArea.widthProperty());
+            embeddedMediaView.fitHeightProperty().bind(
+                    canvasArea.heightProperty().subtract(60));
+            embeddedMediaView.setPreserveRatio(true);
+            StackPane.setAlignment(embeddedMediaView, Pos.CENTER);
+
+            previewView.setVisible(false);
+            previewView.setManaged(false);
+            placeholderLabel.setVisible(false);
+            placeholderLabel.setManaged(false);
+
+            canvasArea.getChildren().add(0, embeddedMediaView);
+
+            playPauseBtn.setOnAction(e -> {
+                if (embeddedPlayer.getStatus() ==
+                        javafx.scene.media.MediaPlayer.Status.PLAYING) {
+                    embeddedPlayer.pause();
+                    playPauseBtn.setText("▶");
+                } else {
+                    embeddedPlayer.play();
+                    playPauseBtn.setText("⏸");
+                }
+            });
+
+            embeddedPlayer.currentTimeProperty().addListener((obs, ov, nv) -> {
+                Duration total = embeddedPlayer.getTotalDuration();
+                if (total != null && total.toSeconds() > 0) {
+                    seekSlider.setValue(nv.toSeconds() / total.toSeconds());
+                    int cur = (int) nv.toSeconds();
+                    int tot = (int) total.toSeconds();
+                    playbackTimeLabel.setText(formatTime(cur) + " / " + formatTime(tot));
+                }
+            });
+
+            seekSlider.setOnMouseReleased(e -> {
+                Duration total = embeddedPlayer.getTotalDuration();
+                if (total != null) {
+                    embeddedPlayer.seek(total.multiply(seekSlider.getValue()));
+                }
+            });
+
+            prevBtn.setOnAction(e -> {
+                if (clipPaths.isEmpty()) return;
+                handleClipSelected(Math.max(0, selectedClipIndex - 1));
+            });
+            nextBtn.setOnAction(e -> {
+                if (clipPaths.isEmpty()) return;
+                handleClipSelected(Math.min(clipPaths.size() - 1, selectedClipIndex + 1));
+            });
+
+            embeddedPlayer.setOnReady(() -> {
+                embeddedPlayer.play();
+                playPauseBtn.setText("⏸");
+            });
+
+            embeddedPlayer.setOnEndOfMedia(() ->
+                    Platform.runLater(() -> playPauseBtn.setText("▶")));
+
+        } catch (Exception ex) {
+            showError("Could not open player.", ex.getMessage());
+        }
+    }
+
     // =========================================================
     // SAVE DRAFT / EXPORT
     // =========================================================
@@ -578,14 +679,26 @@ public class VideoController {
             showWarning("Nothing to export.", "Compile the video first.");
             return;
         }
+
+        FileChooser chooser = new FileChooser();
+        chooser.setTitle("Export video");
+        chooser.setInitialFileName("video_export.mp4");
+        chooser.getExtensionFilters().add(
+                new FileChooser.ExtensionFilter("MP4 Video", "*.mp4"));
+
         Stage stage = getStage();
         if (stage == null) return;
-        String saved = SaveHelper.promptSaveDestination(
-                lastVideoPath, "Export Video", "AVI Video", "*.avi",
-                "video_export.avi", mainController, stage);
-        if (saved != null) {
-            showInfo("Exported.", "Saved to: " + saved);
-            new MediaPlayerController().launchPlayer(saved);
+
+        File dest = chooser.showSaveDialog(stage);
+        if (dest == null) return;
+
+        try {
+            Files.copy(Paths.get(lastVideoPath), dest.toPath(),
+                    StandardCopyOption.REPLACE_EXISTING);
+            showInfo("Exported.", "Saved to: " + dest.getAbsolutePath());
+            new MediaPlayerController().launchPlayer(dest.getAbsolutePath());
+        } catch (IOException e) {
+            showError("Export failed.", e.getMessage());
         }
     }
 
@@ -597,10 +710,6 @@ public class VideoController {
         libraryPaths = paths != null ? new ArrayList<>(paths) : new ArrayList<>();
     }
 
-    public void setMainController(MainController mc) {
-        this.mainController = mc;
-    }
-
     public void setClipPaths(List<String> paths) {
         clipPaths = paths != null ? new ArrayList<>(paths) : new ArrayList<>();
         clipOverlays.clear();
@@ -609,6 +718,13 @@ public class VideoController {
         updateStripInfo();
         if (!clipPaths.isEmpty()) {
             handleClipSelected(0);
+        }
+    }
+
+    public void onNavigateAway() {
+        // TODO: call this from MainController when leaving the video page
+        if (embeddedPlayer != null) {
+            embeddedPlayer.stop();
         }
     }
 

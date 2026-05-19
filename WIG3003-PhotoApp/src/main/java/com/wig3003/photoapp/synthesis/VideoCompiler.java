@@ -29,9 +29,8 @@ import java.util.List;
  */
 public class VideoCompiler {
 
-    private static final int    FRAME_WIDTH  = 1280;
-    private static final int    FRAME_HEIGHT = 720;
-    private static final double FPS          = 25.0;
+    private static final int FRAME_WIDTH  = 1280;
+    private static final int FRAME_HEIGHT = 720;
 
     /**
      * Compiles a list of images into an AVI video with overlay text.
@@ -52,7 +51,8 @@ public class VideoCompiler {
             String overlayText,
             String outputDir,
             String transitionType,
-            String textPosition) throws IOException {
+            String textPosition,
+            int fps) throws IOException {
 
         // 1. Validate inputs
         if (imagePaths == null || imagePaths.isEmpty()) {
@@ -80,23 +80,27 @@ public class VideoCompiler {
         // 2. Ensure output directory exists
         Files.createDirectories(Paths.get(outputDir));
 
-        // 3. Set up VideoWriter — MJPG codec, AVI container, 1280x720, 25fps
-        String filename  = "video_" + System.currentTimeMillis() + ".avi";
-        String outPath = (outputDir + "/" + filename).replace("\\", "/");
+        // 3. Set up VideoWriter — mp4v codec, MP4 container, 1280x720, 25fps
+        String filename  = "viflow_output_"
+                + new java.text.SimpleDateFormat("yyyyMMdd_HHmmss")
+                        .format(new java.util.Date())
+                + ".mp4";
+        String outPath   = outputDir + File.separator + filename;
 
-        VideoWriter writer    = new VideoWriter();
-        int         fourcc    = VideoWriter.fourcc('M', 'J', 'P', 'G');
+        int totalFrames = durationPerPhoto * fps;
+        VideoWriter writer = new VideoWriter();
+        int         fourcc    = VideoWriter.fourcc('m', 'p', '4', 'v');
         Size        frameSize = new Size(FRAME_WIDTH, FRAME_HEIGHT);
 
-        writer.open(outPath, fourcc, FPS, frameSize, true);
+        writer.open(outPath, fourcc, (double) fps, frameSize, true);
 
         if (!writer.isOpened()) {
             throw new IOException("VideoWriter failed to open: " + outPath
-                    + " — check OpenCV videoio support is available");
+                    + " — check mp4v codec is available on this machine");
         }
 
         // 4. Process each image
-        int totalFramesPerClip = durationPerPhoto * (int) FPS;
+        int perPhotoFrames = totalFrames;
 
         for (int i = 0; i < imagePaths.size(); i++) {
             String imgPath = imagePaths.get(i);
@@ -160,7 +164,7 @@ public class VideoCompiler {
             Mat overlaidFrame = ImageUtils.bufferedImageToMat(modifiedCustomBi);
 
             // h. Write main clip frames
-            for (int f = 0; f < totalFramesPerClip; f++) {
+            for (int f = 0; f < perPhotoFrames; f++) {
                 writer.write(overlaidFrame);
             }
 
@@ -241,20 +245,41 @@ public class VideoCompiler {
 
     /**
      * Writes transition frames between two clips.
-     * FADE / CROSS: linear blend from frameA to frameB over ~0.5s (12 frames).
+     * FADE: A → black → B (two-phase, 6 frames each).
+     * CROSS: direct linear dissolve A → B (12 frames).
      */
     private void writeTransitionFrames(VideoWriter writer, Mat frameA, Mat frameB,
                                        String transition) {
         int transFrames = 12;
 
-        for (int t = 0; t < transFrames; t++) {
-            double alpha = (double) t / transFrames;
-            double beta  = 1.0 - alpha;
-
-            Mat blended = new Mat();
-            Core.addWeighted(frameA, beta, frameB, alpha, 0, blended);
-            writer.write(blended);
-            blended.release();
+        if ("FADE".equals(transition)) {
+            int half  = transFrames / 2;
+            Mat black = Mat.zeros(frameA.size(), frameA.type());
+            for (int t = 0; t < half; t++) {
+                double ratio = 1.0 - (double)(t + 1) / half;
+                Mat blended  = new Mat();
+                Core.addWeighted(frameA, ratio, black, 0, 0, blended);
+                writer.write(blended);
+                blended.release();
+            }
+            for (int t = 0; t < half; t++) {
+                double ratio = (double)(t + 1) / half;
+                Mat blended  = new Mat();
+                Core.addWeighted(frameB, ratio, black, 0, 0, blended);
+                writer.write(blended);
+                blended.release();
+            }
+            black.release();
+        } else {
+            // CROSS: direct linear dissolve from A to B
+            for (int t = 0; t < transFrames; t++) {
+                double alpha = (double) t / (transFrames - 1);
+                double beta  = 1.0 - alpha;
+                Mat blended  = new Mat();
+                Core.addWeighted(frameA, beta, frameB, alpha, 0, blended);
+                writer.write(blended);
+                blended.release();
+            }
         }
     }
 }

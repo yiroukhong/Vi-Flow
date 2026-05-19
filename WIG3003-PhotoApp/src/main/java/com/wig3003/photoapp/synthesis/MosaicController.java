@@ -162,12 +162,7 @@ public class MosaicController {
     // =========================================================
 
     private void loadTilePoolFromFavourites() {
-        List<String> paths;
-        try {
-            paths = FavouritesManager.getFavourites();
-        } catch (IOException e) {
-            paths = new ArrayList<>();
-        }
+        List<String> paths = FavouritesManager.getFavourites();
         applyTilePool(paths, "Favorites");
     }
 
