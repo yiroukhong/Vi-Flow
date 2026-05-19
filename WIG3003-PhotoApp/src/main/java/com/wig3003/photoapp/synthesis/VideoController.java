@@ -340,6 +340,20 @@ public class VideoController {
         applySelectionBorders();
     }
 
+    private void applySelectionBorders() {
+        for (int i = 0; i < clipCards.size(); i++) {
+            boolean sel = selectedClipIndices.contains(i);
+            clipCards.get(i).setStyle(
+                    "-fx-background-color:#ECE4D3;"
+                    + "-fx-background-radius:6;"
+                    + "-fx-cursor:hand;"
+                    + (sel
+                        ? "-fx-border-color:#B0432B;-fx-border-width:2;-fx-border-radius:6;"
+                        : "")
+            );
+        }
+    }
+
     private StackPane buildClipCard(int index, String path) {
         StackPane card = new StackPane();
         card.setMinSize(120, 80);
