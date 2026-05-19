@@ -349,27 +349,41 @@ public class VideoController {
     // =========================================================
 
     private void handleClipSelected(int index) {
-        if (selectedClipIndex >= 0 && overlayTextArea != null)
-            clipOverlays.put(selectedClipIndex, overlayTextArea.getText());
-        selectedClipIndex = index;
-        clipIndexLabel.setText(String.format("CLIP · #%02d", index + 1));
-        overlayTextArea.setText(clipOverlays.getOrDefault(index, ""));
-        if (index >= 0 && index < clipPaths.size()) {
-            final String path = clipPaths.get(index);
-            Thread t = new Thread(() -> {
-                Image img = new Image(new File(path).toURI().toString(), 0, 0, true, true);
-                Platform.runLater(() -> {
-                    previewView.setImage(img);
-                    double fw = canvasArea.getWidth() - 48;
-                    double fh = canvasArea.getHeight() - 48;
-                    if (fw > 0) previewView.setFitWidth(fw);
-                    if (fh > 0) previewView.setFitHeight(fh);
-                    placeholderLabel.setVisible(false);
-                    placeholderLabel.setManaged(false);
+        handleClipSelected(index, false);
+    }
+
+    private void handleClipSelected(int index, boolean isShift) {
+        if (isShift && selectedClipIndex >= 0) {
+            int start = Math.min(selectedClipIndex, index);
+            int end   = Math.max(selectedClipIndex, index);
+            selectedClipIndices.clear();
+            for (int i = start; i <= end; i++) selectedClipIndices.add(i);
+        } else {
+            if (selectedClipIndex >= 0 && overlayTextArea != null)
+                clipOverlays.put(selectedClipIndex, overlayTextArea.getText());
+            selectedClipIndices.clear();
+            selectedClipIndices.add(index);
+            selectedClipIndex = index;
+            clipIndexLabel.setText(String.format("CLIP · #%02d", index + 1));
+            overlayTextArea.setText(clipOverlays.getOrDefault(index, ""));
+            if (index >= 0 && index < clipPaths.size()) {
+                final String path = clipPaths.get(index);
+                Thread t = new Thread(() -> {
+                    Image img = new Image(new File(path).toURI().toString(), 0, 0, true, true);
+                    Platform.runLater(() -> {
+                        previewView.setImage(img);
+                        double fw = canvasArea.getWidth() - 48;
+                        double fh = canvasArea.getHeight() - 48;
+                        if (fw > 0) previewView.setFitWidth(fw);
+                        if (fh > 0) previewView.setFitHeight(fh);
+                        placeholderLabel.setVisible(false);
+                        placeholderLabel.setManaged(false);
+                        refreshOverlayPreview();
+                    });
                 });
-            });
-            t.setDaemon(true);
-            t.start();
+                t.setDaemon(true);
+                t.start();
+            }
         }
         rebuildFilmstrip();
     }
