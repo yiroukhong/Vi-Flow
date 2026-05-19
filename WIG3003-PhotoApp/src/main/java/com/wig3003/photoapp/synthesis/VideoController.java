@@ -602,7 +602,6 @@ public class VideoController {
             placeholderLabel.setVisible(false);
             placeholderLabel.setManaged(false);
 
-            // Insert behind the playbackBar overlay
             canvasArea.getChildren().add(0, embeddedMediaView);
 
             playPauseBtn.setOnAction(e -> {
