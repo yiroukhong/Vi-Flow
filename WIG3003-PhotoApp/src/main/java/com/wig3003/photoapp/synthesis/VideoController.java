@@ -213,6 +213,60 @@ public class VideoController {
         return "PLAIN";
     }
 
+    private void refreshOverlayPreview() {
+        if (previewTextLabel == null) return;
+
+        // ── Text overlay ──────────────────────────────────────
+        String text = overlayTextArea != null ? overlayTextArea.getText() : "";
+        previewTextLabel.setText(text);
+
+        int size = textSizeSlider != null ? (int) textSizeSlider.getValue() : 22;
+        String baseStyle =
+                "-fx-font-size:" + size + ";"
+                + "-fx-text-fill:white;"
+                + "-fx-font-weight:bold;";
+
+        if ("WITH_BOX".equals(getTextStyle())) {
+            baseStyle += "-fx-background-color:rgba(0,0,0,0.55);"
+                    + "-fx-background-radius:4;"
+                    + "-fx-padding:6 12 6 12;";
+        } else {
+            baseStyle += "-fx-padding:6 12 6 12;";
+        }
+        previewTextLabel.setStyle(baseStyle);
+
+        javafx.geometry.Pos alignment = javafx.geometry.Pos.BOTTOM_CENTER;
+        if (posTop != null && posTop.isSelected())
+            alignment = javafx.geometry.Pos.TOP_CENTER;
+        else if (posCenter != null && posCenter.isSelected())
+            alignment = javafx.geometry.Pos.CENTER;
+        StackPane.setAlignment(previewTextLabel, alignment);
+
+        // ── Graphic overlay ───────────────────────────────────
+        if (overlayImagePath != null && !overlayImagePath.isBlank()) {
+            previewGraphicView.setVisible(true);
+            previewGraphicView.setManaged(true);
+            Image gImg = new Image(
+                    new File(overlayImagePath).toURI().toString(),
+                    120, 120, true, true, true);
+            previewGraphicView.setImage(gImg);
+
+            javafx.geometry.Pos gPos = javafx.geometry.Pos.TOP_LEFT;
+            switch (getGraphicPosition()) {
+                case "TOP_RIGHT":    gPos = javafx.geometry.Pos.TOP_RIGHT;    break;
+                case "BOTTOM_LEFT":  gPos = javafx.geometry.Pos.BOTTOM_LEFT;  break;
+                case "BOTTOM_RIGHT": gPos = javafx.geometry.Pos.BOTTOM_RIGHT; break;
+                case "CENTER":       gPos = javafx.geometry.Pos.CENTER;       break;
+                default:             gPos = javafx.geometry.Pos.TOP_LEFT;     break;
+            }
+            StackPane.setAlignment(previewGraphicView, gPos);
+            StackPane.setMargin(previewGraphicView, new Insets(12, 12, 12, 12));
+        } else {
+            previewGraphicView.setVisible(false);
+            previewGraphicView.setManaged(false);
+        }
+    }
+
     // =========================================================
     // LOAD CLIPS
     // =========================================================
