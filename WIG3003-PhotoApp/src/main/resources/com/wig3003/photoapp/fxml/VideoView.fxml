@@ -276,6 +276,17 @@
                                           styleClass="filter-pill"/>
                         </HBox>
 
+                        <Label text="Size"
+                               style="-fx-font-size:10;-fx-font-weight:bold;
+                                      -fx-text-fill:#1F1B16;-fx-padding:10 0 0 0;"/>
+                        <HBox spacing="8" alignment="CENTER_LEFT" style="-fx-padding:6 0 0 0;">
+                            <Slider fx:id="graphicSizeSlider" min="40" max="300" value="120"
+                                    HBox.hgrow="ALWAYS"/>
+                            <Label fx:id="graphicSizeLabel" text="120 px"
+                                   style="-fx-font-size:11;-fx-font-weight:bold;
+                                          -fx-text-fill:#C8623F;-fx-min-width:48;"/>
+                        </HBox>
+
                     </VBox>
 
                     <!-- Output -->
