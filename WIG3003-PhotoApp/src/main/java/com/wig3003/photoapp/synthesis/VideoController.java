@@ -292,7 +292,7 @@ public class VideoController {
         card.setMinSize(120, 80);
         card.setMaxSize(120, 80);
         card.setPrefSize(120, 80);
-        boolean selected = (index == selectedClipIndex);
+        boolean selected = selectedClipIndices.contains(index);
         card.setStyle(
                 "-fx-background-color:#ECE4D3;-fx-background-radius:6;-fx-cursor:hand;"
                 + (selected ? "-fx-border-color:#B0432B;-fx-border-width:2;-fx-border-radius:6;" : "")
@@ -318,7 +318,28 @@ public class VideoController {
         boolean hasOverlay = !clipOverlays.getOrDefault(index, "").isEmpty();
         dot.setVisible(hasOverlay); dot.setManaged(hasOverlay);
         card.getChildren().add(dot);
-        card.setOnMouseClicked(e -> handleClipSelected(index));
+        card.setOnMouseClicked(e -> {
+            if (e.getButton() == javafx.scene.input.MouseButton.PRIMARY) {
+                handleClipSelected(index, e.isShiftDown());
+            }
+        });
+
+        javafx.scene.control.ContextMenu ctx = new javafx.scene.control.ContextMenu();
+        javafx.scene.control.MenuItem removeItem =
+                new javafx.scene.control.MenuItem("Remove from strip");
+        removeItem.setStyle("-fx-text-fill:#B0432B;");
+        removeItem.setOnAction(e -> {
+            if (!selectedClipIndices.contains(index)) {
+                selectedClipIndices.clear();
+                selectedClipIndices.add(index);
+                selectedClipIndex = index;
+            }
+            deleteSelectedClips();
+        });
+        ctx.getItems().add(removeItem);
+        card.setOnContextMenuRequested(e ->
+                ctx.show(card, e.getScreenX(), e.getScreenY()));
+
         return card;
     }
 
