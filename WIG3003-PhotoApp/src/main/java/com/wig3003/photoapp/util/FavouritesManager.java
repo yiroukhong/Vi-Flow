@@ -13,6 +13,7 @@ import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
+import java.util.concurrent.CopyOnWriteArrayList;
 
 public class FavouritesManager {
 
@@ -20,22 +21,45 @@ public class FavouritesManager {
     private static final Gson GSON = new Gson();
     private static final Type LIST_TYPE = new TypeToken<List<String>>(){}.getType();
 
-    private static List<String> load() throws IOException {
-        if (!Files.exists(FAVOURITES_FILE)) {
-            return new ArrayList<>();
+    // In-memory cache to prevent constant disk I/O and UI flickering
+    private static List<String> cachedFavourites = null;
+
+    private static List<String> load() {
+        if (cachedFavourites != null) {
+            return cachedFavourites;
         }
-        String json = Files.readString(FAVOURITES_FILE, StandardCharsets.UTF_8);
-        List<String> list = GSON.fromJson(json, LIST_TYPE);
-        return list != null ? new ArrayList<>(list) : new ArrayList<>();
+
+        if (!Files.exists(FAVOURITES_FILE)) {
+            cachedFavourites = new CopyOnWriteArrayList<>();
+            return cachedFavourites;
+        }
+
+        try {
+            String json = Files.readString(FAVOURITES_FILE, StandardCharsets.UTF_8);
+            List<String> list = GSON.fromJson(json, LIST_TYPE);
+            cachedFavourites = list != null ? new CopyOnWriteArrayList<>(list) : new CopyOnWriteArrayList<>();
+        } catch (IOException e) {
+            e.printStackTrace();
+            cachedFavourites = new CopyOnWriteArrayList<>();
+        }
+        
+        return cachedFavourites;
     }
 
-    private static void save(List<String> paths) throws IOException {
-        Files.createDirectories(FAVOURITES_FILE.getParent());
-        Files.writeString(FAVOURITES_FILE, GSON.toJson(paths), StandardCharsets.UTF_8);
+    private static void save(List<String> paths) {
+        // Run file writing in a background thread to keep UI smooth
+        new Thread(() -> {
+            try {
+                Files.createDirectories(FAVOURITES_FILE.getParent());
+                Files.writeString(FAVOURITES_FILE, GSON.toJson(paths), StandardCharsets.UTF_8);
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
+        }).start();
     }
 
     // Add image to favourites list
-    public static void addFavourite(String absolutePath) throws IOException {
+    public static void addFavourite(String absolutePath) {
         List<String> paths = load();
         if (!paths.contains(absolutePath)) {
             paths.add(absolutePath);
@@ -44,7 +68,7 @@ public class FavouritesManager {
     }
 
     // Remove image from favourites list
-    public static void removeFavourite(String absolutePath) throws IOException {
+    public static void removeFavourite(String absolutePath) {
         List<String> paths = load();
         if (paths.remove(absolutePath)) {
             save(paths);
@@ -52,16 +76,13 @@ public class FavouritesManager {
     }
 
     // Check if image is currently a favourite (used for button toggle state in UI)
-    public static boolean isFavourite(String absolutePath) throws IOException {
-        if (!Files.exists(FAVOURITES_FILE)) {
-            return false;
-        }
+    public static boolean isFavourite(String absolutePath) {
         return load().contains(absolutePath);
     }
 
     // Get full ordered favourites list, sorted by file last-modified date (oldest first)
-    public static List<String> getFavourites() throws IOException {
-        List<String> paths = load();
+    public static List<String> getFavourites() {
+        List<String> paths = new ArrayList<>(load());
         paths.sort(Comparator.comparingLong(p -> new File(p).lastModified()));
         return paths;
     }

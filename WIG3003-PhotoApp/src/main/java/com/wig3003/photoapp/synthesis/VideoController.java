@@ -142,11 +142,7 @@ public class VideoController {
 
     private void loadClipsFromFavourites() {
         List<String> paths;
-        try {
-            paths = FavouritesManager.getFavourites();
-        } catch (IOException e) {
-            paths = new ArrayList<>();
-        }
+        paths = FavouritesManager.getFavourites();
         clipPaths = new ArrayList<>(paths);
         rebuildFilmstrip();
         updateStripInfo();
@@ -225,7 +221,14 @@ public class VideoController {
         Label plus = new Label("+");
         plus.setStyle("-fx-font-size:24; -fx-text-fill:#9C907D;");
         card.getChildren().add(plus);
-        card.setOnMouseClicked(e -> handleAddFromFavorites());
+        card.setOnMouseClicked(e -> {
+            try {
+                handleAddFromFavorites();
+            } catch (IOException e1) {
+                // TODO Auto-generated catch block
+                e1.printStackTrace();
+            }
+        });
         return card;
     }
 
@@ -277,7 +280,7 @@ public class VideoController {
     // ADD FROM FAVORITES
     // =========================================================
 
-    private void handleAddFromFavorites() {
+    private void handleAddFromFavorites() throws IOException {
         Stage owner = getStage();
         if (owner == null) return;
 
@@ -285,12 +288,7 @@ public class VideoController {
         if (!libraryPaths.isEmpty()) {
             source = libraryPaths;
         } else {
-            try {
-                source = FavouritesManager.getFavourites();
-            } catch (IOException e) {
-                showError("Could not load library.", e.getMessage());
-                return;
-            }
+            source = FavouritesManager.getFavourites();
         }
 
         List<String> available = source.stream()
