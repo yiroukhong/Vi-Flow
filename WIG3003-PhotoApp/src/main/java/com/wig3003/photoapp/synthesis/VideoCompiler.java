@@ -252,20 +252,41 @@ public class VideoCompiler {
 
     /**
      * Writes transition frames between two clips.
-     * FADE / CROSS: linear blend from frameA to frameB over ~0.5s (12 frames).
+     * FADE: A → black → B (two-phase, 6 frames each).
+     * CROSS: direct linear dissolve A → B (12 frames).
      */
     private void writeTransitionFrames(VideoWriter writer, Mat frameA, Mat frameB,
                                        String transition) {
         int transFrames = 12;
 
-        for (int t = 0; t < transFrames; t++) {
-            double alpha = (double) t / transFrames;
-            double beta  = 1.0 - alpha;
-
-            Mat blended = new Mat();
-            Core.addWeighted(frameA, beta, frameB, alpha, 0, blended);
-            writer.write(blended);
-            blended.release();
+        if ("FADE".equals(transition)) {
+            int half  = transFrames / 2;
+            Mat black = Mat.zeros(frameA.size(), frameA.type());
+            for (int t = 0; t < half; t++) {
+                double ratio = 1.0 - (double)(t + 1) / half;
+                Mat blended  = new Mat();
+                Core.addWeighted(frameA, ratio, black, 0, 0, blended);
+                writer.write(blended);
+                blended.release();
+            }
+            for (int t = 0; t < half; t++) {
+                double ratio = (double)(t + 1) / half;
+                Mat blended  = new Mat();
+                Core.addWeighted(frameB, ratio, black, 0, 0, blended);
+                writer.write(blended);
+                blended.release();
+            }
+            black.release();
+        } else {
+            // CROSS: direct linear dissolve from A to B
+            for (int t = 0; t < transFrames; t++) {
+                double alpha = (double) t / (transFrames - 1);
+                double beta  = 1.0 - alpha;
+                Mat blended  = new Mat();
+                Core.addWeighted(frameA, beta, frameB, alpha, 0, blended);
+                writer.write(blended);
+                blended.release();
+            }
         }
     }
 }

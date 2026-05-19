@@ -653,41 +653,88 @@ public class MainController implements Initializable {
 
         MenuItem exportItem = new MenuItem("Export to device");
         exportItem.setOnAction(e -> {
-            FileChooser fc = new FileChooser();
-            fc.setTitle("Export image");
-            fc.setInitialFileName(filename);
-            fc.getExtensionFilters().add(
-                    new FileChooser.ExtensionFilter("Image files",
-                            "*.png", "*.jpg", "*.jpeg", "*.bmp"));
-            File dest = fc.showSaveDialog(cell.getScene().getWindow());
-            if (dest != null) {
-                try {
-                    Files.copy(Paths.get(path), dest.toPath(), StandardCopyOption.REPLACE_EXISTING);
-                    Alert info = new Alert(Alert.AlertType.INFORMATION);
+            if (selectedIndices.contains(index) && selectedIndices.size() > 1) {
+                DirectoryChooser dc = new DirectoryChooser();
+                dc.setTitle("Export " + selectedIndices.size() + " images to folder");
+                File dir = dc.showDialog(cell.getScene().getWindow());
+                if (dir != null) {
+                    int success = 0, failed = 0;
+                    for (int idx : selectedIndices) {
+                        String p = displayPaths.get(idx);
+                        String fname = Paths.get(p).getFileName().toString();
+                        try {
+                            Files.copy(Paths.get(p), dir.toPath().resolve(fname),
+                                    StandardCopyOption.REPLACE_EXISTING);
+                            success++;
+                        } catch (java.io.IOException ex) {
+                            failed++;
+                        }
+                    }
+                    Alert info = new Alert(failed == 0 ? Alert.AlertType.INFORMATION : Alert.AlertType.WARNING);
                     info.setTitle("Export");
                     info.setHeaderText(null);
-                    info.setContentText("Exported successfully.");
+                    info.setContentText(success + " image(s) exported successfully." +
+                            (failed > 0 ? " " + failed + " failed." : ""));
                     info.showAndWait();
-                } catch (java.io.IOException ex) {
-                    Alert err = new Alert(Alert.AlertType.ERROR);
-                    err.setTitle("Export failed");
-                    err.setHeaderText(null);
-                    err.setContentText("Could not export: " + ex.getMessage());
-                    err.showAndWait();
+                }
+            } else {
+                FileChooser fc = new FileChooser();
+                fc.setTitle("Export image");
+                fc.setInitialFileName(filename);
+                fc.getExtensionFilters().add(
+                        new FileChooser.ExtensionFilter("Image files",
+                                "*.png", "*.jpg", "*.jpeg", "*.bmp"));
+                File dest = fc.showSaveDialog(cell.getScene().getWindow());
+                if (dest != null) {
+                    try {
+                        Files.copy(Paths.get(path), dest.toPath(), StandardCopyOption.REPLACE_EXISTING);
+                        Alert info = new Alert(Alert.AlertType.INFORMATION);
+                        info.setTitle("Export");
+                        info.setHeaderText(null);
+                        info.setContentText("Exported successfully.");
+                        info.showAndWait();
+                    } catch (java.io.IOException ex) {
+                        Alert err = new Alert(Alert.AlertType.ERROR);
+                        err.setTitle("Export failed");
+                        err.setHeaderText(null);
+                        err.setContentText("Could not export: " + ex.getMessage());
+                        err.showAndWait();
+                    }
                 }
             }
+        });
+
+        MenuItem favItem = new MenuItem("Add to favorites");
+        favItem.setOnAction(e -> {
+            Set<Integer> toToggle = (selectedIndices.contains(index) && selectedIndices.size() > 1)
+                    ? new HashSet<>(selectedIndices) : new HashSet<>();
+            if (toToggle.isEmpty()) toToggle.add(index);
+            boolean allFav = toToggle.stream().allMatch(i -> favourites.contains(displayPaths.get(i)));
+            for (int i : toToggle) {
+                if (allFav) favourites.remove(displayPaths.get(i));
+                else favourites.add(displayPaths.get(i));
+            }
+            updateCounts();
+            refreshGrid();
+            for (int i : selectedIndices) setOverlaySelected(i, true);
         });
 
         MenuItem deleteItem = new MenuItem("Remove from library");
         deleteItem.setStyle("-fx-text-fill: #B0432B;");
         deleteItem.setOnAction(e -> {
-            selectImage(index);
+            if (!selectedIndices.contains(index)) selectImage(index);
             deleteSelectedImages();
         });
 
-        ctxMenu.getItems().addAll(exportItem, new SeparatorMenuItem(), deleteItem);
-        cell.setOnContextMenuRequested(e ->
-                ctxMenu.show(cell, e.getScreenX(), e.getScreenY()));
+        ctxMenu.getItems().addAll(exportItem, favItem, new SeparatorMenuItem(), deleteItem);
+        cell.setOnContextMenuRequested(e -> {
+            Set<Integer> affected = (selectedIndices.contains(index) && selectedIndices.size() > 1)
+                    ? new HashSet<>(selectedIndices) : new HashSet<>();
+            if (affected.isEmpty()) affected.add(index);
+            boolean allFav = affected.stream().allMatch(i -> favourites.contains(displayPaths.get(i)));
+            favItem.setText(allFav ? "Remove from favorites" : "Add to favorites");
+            ctxMenu.show(cell, e.getScreenX(), e.getScreenY());
+        });
 
         // Filename label below thumbnail
         Label nameLabel = new Label(filename);

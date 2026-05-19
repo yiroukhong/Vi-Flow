@@ -107,6 +107,8 @@ public class VideoController {
     private Timeline                  previewTimeline   = null;
     private int                       previewIndex      = 0;
     private final Map<Integer,String> clipOverlays      = new HashMap<>();
+    private javafx.scene.media.MediaPlayer embeddedPlayer    = null;
+    private javafx.scene.media.MediaView   embeddedMediaView = null;
 
     // =========================================================
     // INITIALIZE
@@ -543,12 +545,7 @@ public class VideoController {
                     timecodeLabel.setText(formatTime(paths.size() * durationPerPhoto));
                     resetCompileUI();
 
-                    // Auto-launch MediaPlayer with the compiled video
-                    try {
-                        new MediaPlayerController().launchPlayer(resultPath);
-                    } catch (Exception ex) {
-                        showError("Could not open player.", ex.getMessage());
-                    }
+                    embedPlayer(resultPath);
                 });
 
             } catch (IllegalArgumentException | IOException e) {
@@ -570,6 +567,94 @@ public class VideoController {
         saveDraftBtn.setText("Save draft");
         saveDraftBtn.setVisible(false);
         saveDraftBtn.setManaged(false);
+    }
+
+    private void embedPlayer(String videoPath) {
+        if (embeddedPlayer != null) {
+            embeddedPlayer.stop();
+            embeddedPlayer.dispose();
+            embeddedPlayer = null;
+        }
+
+        if (embeddedMediaView != null) {
+            canvasArea.getChildren().remove(embeddedMediaView);
+            embeddedMediaView = null;
+        }
+
+        try {
+            File f = new File(videoPath);
+            if (!f.exists()) {
+                showError("Playback error.", "Video file not found: " + videoPath);
+                return;
+            }
+
+            javafx.scene.media.Media media =
+                    new javafx.scene.media.Media(f.toURI().toString());
+            embeddedPlayer    = new javafx.scene.media.MediaPlayer(media);
+            embeddedMediaView = new javafx.scene.media.MediaView(embeddedPlayer);
+
+            embeddedMediaView.fitWidthProperty().bind(canvasArea.widthProperty());
+            embeddedMediaView.fitHeightProperty().bind(
+                    canvasArea.heightProperty().subtract(60));
+            embeddedMediaView.setPreserveRatio(true);
+            StackPane.setAlignment(embeddedMediaView, Pos.CENTER);
+
+            previewView.setVisible(false);
+            previewView.setManaged(false);
+            placeholderLabel.setVisible(false);
+            placeholderLabel.setManaged(false);
+
+            // Insert behind the playbackBar overlay
+            canvasArea.getChildren().add(0, embeddedMediaView);
+
+            playPauseBtn.setOnAction(e -> {
+                if (embeddedPlayer.getStatus() ==
+                        javafx.scene.media.MediaPlayer.Status.PLAYING) {
+                    embeddedPlayer.pause();
+                    playPauseBtn.setText("▶");
+                } else {
+                    embeddedPlayer.play();
+                    playPauseBtn.setText("⏸");
+                }
+            });
+
+            embeddedPlayer.currentTimeProperty().addListener((obs, ov, nv) -> {
+                Duration total = embeddedPlayer.getTotalDuration();
+                if (total != null && total.toSeconds() > 0) {
+                    seekSlider.setValue(nv.toSeconds() / total.toSeconds());
+                    int cur = (int) nv.toSeconds();
+                    int tot = (int) total.toSeconds();
+                    playbackTimeLabel.setText(formatTime(cur) + " / " + formatTime(tot));
+                }
+            });
+
+            seekSlider.setOnMouseReleased(e -> {
+                Duration total = embeddedPlayer.getTotalDuration();
+                if (total != null) {
+                    embeddedPlayer.seek(total.multiply(seekSlider.getValue()));
+                }
+            });
+
+            prevBtn.setOnAction(e -> {
+                if (clipPaths.isEmpty()) return;
+                handleClipSelected(Math.max(0, selectedClipIndex - 1));
+            });
+            nextBtn.setOnAction(e -> {
+                if (clipPaths.isEmpty()) return;
+                handleClipSelected(Math.min(clipPaths.size() - 1, selectedClipIndex + 1));
+            });
+
+            embeddedPlayer.setOnReady(() -> {
+                embeddedPlayer.play();
+                playPauseBtn.setText("⏸");
+            });
+
+            embeddedPlayer.setOnEndOfMedia(() ->
+                    Platform.runLater(() -> playPauseBtn.setText("▶")));
+
+        } catch (Exception ex) {
+            showError("Could not open player.", ex.getMessage());
+        }
     }
 
     // =========================================================
@@ -626,6 +711,13 @@ public class VideoController {
         updateStripInfo();
         if (!clipPaths.isEmpty()) {
             handleClipSelected(0);
+        }
+    }
+
+    public void onNavigateAway() {
+        // TODO: call this from MainController when leaving the video page
+        if (embeddedPlayer != null) {
+            embeddedPlayer.stop();
         }
     }
 
