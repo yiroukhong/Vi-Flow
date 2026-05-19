@@ -342,9 +342,14 @@ public class VideoController {
     private void rebuildFilmstrip() {
         filmstripBox.getChildren().clear();
         clipCards.clear();
+        clipSelRects.clear();
         for (int i = 0; i < clipPaths.size(); i++) {
             StackPane card = buildClipCard(i, clipPaths.get(i));
             clipCards.add(card);
+            javafx.scene.shape.Rectangle r =
+                (javafx.scene.shape.Rectangle)
+                card.getChildren().get(card.getChildren().size() - 1);
+            clipSelRects.add(r);
             filmstripBox.getChildren().add(card);
         }
         filmstripBox.getChildren().add(buildAddCard());
