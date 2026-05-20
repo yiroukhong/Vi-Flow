@@ -12,9 +12,7 @@ import java.util.Map;
 import java.util.Properties;
 // CW added
 import java.util.ArrayList;
-import java.util.HashSet;
 import java.util.List;
-import java.util.Set;
 // CW added-end
 
 public class MetadataStore {
@@ -27,7 +25,6 @@ public class MetadataStore {
     
     // CW: remembered app library image paths, including imported folder images
     private final Map<String, String> libraryImages = new HashMap<>();
-    private final Set<String> removedLibraryPaths = new HashSet<>();
     // CW: change end
     // CW: library storage folder
     private final Path libraryDir;
@@ -91,6 +88,12 @@ public class MetadataStore {
         }
 
         paths.sort(String::compareToIgnoreCase);
+        System.out.println("libraryImages size: " + libraryImages.size());
+System.out.println("storageFile exists: " + Files.exists(storageFile));
+System.out.println("storageFile path: " + storageFile.toAbsolutePath());
+for (String k : libraryImages.keySet()) {
+    System.out.println("  key: " + k + " exists: " + Files.exists(Paths.get(k)));
+}
         return paths;
     }
     // CW: change end
@@ -103,6 +106,11 @@ public class MetadataStore {
         persist();
     }
     // CW: change end
+
+    public void removeLibraryPath(String absolutePath) {
+        libraryImages.remove(absolutePath);
+        persist();
+    }
 
     // CW: remember many imported image paths as part of the app library
     public void saveLibraryImagePaths(Collection<String> paths) {
@@ -186,13 +194,13 @@ public static boolean hasAnnotation(String absolutePath) {
                 annotations.put(key.substring("annotation.".length()), value);
             } else if (key.startsWith("library.")) {
                 libraryImages.put(value, value);
-            } else if (key.startsWith("removed.")) {
-                removedLibraryPaths.add(value);
-            } else {
+            } else if (!key.startsWith("removed.")) {
                 // CW: support old annotation format
                 annotations.put(key, value);
             }
         }
+
+        
         // CW change end 
     }
 
@@ -209,6 +217,7 @@ public static boolean hasAnnotation(String absolutePath) {
                 props.setProperty("library." + i, path);
                 i++;
             }
+
             //CW
             try (OutputStream out = Files.newOutputStream(storageFile)) {
                 props.store(out, "Vi-Flow annotations");

@@ -258,6 +258,10 @@ public class MainController implements Initializable {
 
         applyFilter();
         updateCounts();
+
+        List<String> loaded = MetadataStore.getInstance().getLibraryPaths();
+        System.out.println("Loaded " + loaded.size() + " paths");
+        loaded.forEach(System.out::println);
     }
     // CW: change end
 
@@ -1112,6 +1116,14 @@ public class MainController implements Initializable {
                     pathsToRemove.add(path);
                     allPaths.remove(path);
                     MetadataStore.getInstance().deleteAnnotation(path);
+                    MetadataStore.getInstance().removeLibraryPath(path);
+                    java.nio.file.Path libDir = MetadataStore.getInstance().getLibraryDirectory();
+                    java.nio.file.Path filePath = Paths.get(path);
+                    try {
+                        if (filePath.startsWith(libDir)) {
+                            Files.deleteIfExists(filePath);
+                        }
+                    } catch (java.io.IOException ignored) {}
                     favourites.remove(path);
                 }
                 
