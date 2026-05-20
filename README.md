@@ -8,11 +8,11 @@ A JavaFX-based desktop application for photo management, digital image processin
 
 | Name | Role | GitHub |
 |---|---|---|
-| Yirou | GUI & Navigation Lead, Repo Owner | `@PLACEHOLDER` |
-| Emily | DIP — Radiometric & Aesthetic | `@PLACEHOLDER` |
-| Chyntia | DIP — Geometric & Object Extraction | `@PLACEHOLDER` |
-| Winnie | Multimedia Synthesis | `@PLACEHOLDER` |
-| Sam | Social Integration, App Entry Point, Report Lead | `@PLACEHOLDER` |
+| Yirou | GUI & Navigation Lead, Repo Owner |
+| Emily | DIP — Radiometric & Aesthetic |
+| Chyntia | DIP — Geometric & Object Extraction | 
+| Winnie | Multimedia Synthesis |
+| Sam | Social Integration, App Entry Point, Report Lead |
 
 ---
 
@@ -168,10 +168,5 @@ Standard Gmail passwords are blocked for SMTP. Use a Gmail App Password when tes
 
 ## Contribution Log
 
-The full Team Contribution Log is maintained in [`docs/report/`](docs/report/) per submission requirements, and updated by Sam throughout the project.
+The full Team Contribution Log is maintained in [`docs/report/`](docs/report/) per submission requirements, and updated by throughout the project.
 
----
-
-## Submission Deadline
-
-**20 May 2026** — late submissions incur penalties per course policy.
