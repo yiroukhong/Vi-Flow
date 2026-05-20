@@ -32,6 +32,17 @@
                     styleClass="btn-secondary"
                     visible="false" managed="false"/>
 
+            <Label text="Zoom"
+                   style="-fx-font-size:10;-fx-text-fill:#6B6051;-fx-font-weight:bold;"/>
+            <ComboBox fx:id="zoomCombo"
+                      onAction="#handleZoomChange"
+                      prefWidth="116"
+                      style="-fx-font-size:11;
+                             -fx-background-color:#F5F0E6;
+                             -fx-border-color:#DDD2BC;
+                             -fx-border-radius:5;
+                             -fx-background-radius:5;"/>
+
             <Button fx:id="exportBtn" text="Export"
                     onAction="#handleExport"
                     styleClass="btn-primary">
@@ -190,8 +201,8 @@
 
                 <ScrollPane fx:id="mosaicScrollPane"
                             pannable="true"
-                            fitToWidth="true"
-                            fitToHeight="true"
+                            fitToWidth="false"
+                            fitToHeight="false"
                             hbarPolicy="AS_NEEDED"
                             vbarPolicy="AS_NEEDED"
                             style="-fx-background-color:transparent;

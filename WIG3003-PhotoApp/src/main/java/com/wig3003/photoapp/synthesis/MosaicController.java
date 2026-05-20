@@ -1,5 +1,6 @@
 package com.wig3003.photoapp.synthesis;
 
+import com.wig3003.photoapp.dip.geometric.SmartViewport;
 import com.wig3003.photoapp.ui.MainController;
 import com.wig3003.photoapp.util.FavouritesManager;
 import com.wig3003.photoapp.util.ImageUtils;
@@ -38,10 +39,11 @@ public class MosaicController {
     // FXML — TOOLBAR
     // =========================================================
 
-    @FXML private Label  mosaicTitle;
-    @FXML private Label  progressLabel;
-    @FXML private Button cancelBtn;
-    @FXML private Button exportBtn;
+    @FXML private Label             mosaicTitle;
+    @FXML private Label             progressLabel;
+    @FXML private Button            cancelBtn;
+    @FXML private Button            exportBtn;
+    @FXML private ComboBox<String>  zoomCombo;
 
     // =========================================================
     // FXML — CANVAS AREA
@@ -87,6 +89,7 @@ public class MosaicController {
     // =========================================================
 
     private MainController mainController = null;
+    private SmartViewport  viewport       = null;
 
     private List<String> tilePaths        = new ArrayList<>();
     private List<String> libraryPaths     = new ArrayList<>();
@@ -115,12 +118,37 @@ public class MosaicController {
         checkerCanvas.widthProperty().addListener( (o, ov, nv) -> drawChecker());
         checkerCanvas.heightProperty().addListener((o, ov, nv) -> drawChecker());
 
+        zoomCombo.setItems(
+                javafx.collections.FXCollections.observableArrayList(
+                        SmartViewport.PRESET_LABELS));
+        zoomCombo.getSelectionModel().select(SmartViewport.LABEL_FIT);
+
+        viewport = new SmartViewport(
+                mosaicScrollPane,
+                mosaicCheckerPane,
+                mosaicView,
+                zoomCombo);
+
+        mosaicScrollPane.addEventFilter(
+                javafx.scene.input.ScrollEvent.SCROLL, e -> {
+                    if (!e.isControlDown()) return;
+                    e.consume();
+                    double delta = e.getDeltaY() > 0 ? 1.15 : 1.0 / 1.15;
+                    viewport.onScrollWheelZoom(delta);
+                });
+
         loadTilePoolFromFavourites();
     }
 
     // =========================================================
     // PUBLIC API
     // =========================================================
+
+    @FXML
+    private void handleZoomChange() {
+        if (viewport == null) return;
+        viewport.onUserSelectedZoomLabel(zoomCombo.getValue());
+    }
 
     public void setLibraryPaths(List<String> paths) {
         this.libraryPaths = paths != null ? new ArrayList<>(paths) : new ArrayList<>();
@@ -294,6 +322,7 @@ public class MosaicController {
                     resultMat.release();
                     lastMosaicPath = finalPath;
                     mosaicView.setImage(wi);
+                    viewport.onImageLoaded(wi.getWidth(), wi.getHeight());
                     placeholderLabel.setVisible(false);
                     gridInfoLabel.setText(capturedTiles.size() + " tiles · " + tileSize + "px");
                     resetGenerationUI();
